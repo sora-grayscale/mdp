@@ -1,5 +1,5 @@
 use crate::files::FileTree;
-use pulldown_cmark::{html, Options, Parser};
+use pulldown_cmark::{Options, Parser, html};
 
 const TEMPLATE: &str = include_str!("../../assets/template.html");
 const TEMPLATE_SIDEBAR: &str = include_str!("../../assets/template_sidebar.html");

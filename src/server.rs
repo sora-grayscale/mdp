@@ -1,16 +1,16 @@
 use axum::{
+    Json, Router,
     extract::{
-        ws::{Message, WebSocket, WebSocketUpgrade},
         Query, State,
+        ws::{Message, WebSocket, WebSocketUpgrade},
     },
-    http::{header, HeaderMap, StatusCode},
+    http::{HeaderMap, StatusCode, header},
     response::{Html, IntoResponse, Response},
     routing::get,
-    Json, Router,
 };
 use serde::{Deserialize, Serialize};
-use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::Arc;
+use std::sync::atomic::{AtomicUsize, Ordering};
 use tokio::sync::broadcast;
 
 use crate::files::FileTree;
@@ -221,10 +221,7 @@ async fn ws_handler(ws: WebSocketUpgrade, State(state): State<Arc<ServerState>>)
 
 async fn handle_socket(mut socket: WebSocket, state: Arc<ServerState>) {
     // Increment connection count
-    let prev_count = state.connection_count.fetch_add(1, Ordering::SeqCst);
-    if prev_count == 0 {
-        // First connection or reconnection after all disconnected
-    }
+    state.connection_count.fetch_add(1, Ordering::SeqCst);
 
     let mut rx = state.reload_tx.subscribe();
 

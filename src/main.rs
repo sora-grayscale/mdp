@@ -129,7 +129,7 @@ fn main() {
     } else if args.watch {
         // Terminal watch mode (single file only for now)
         if let Some(file) = file_tree.default_file() {
-            run_terminal_watch_mode(&file.absolute_path, &args.theme, args.no_pager);
+            run_terminal_watch_mode(&file.absolute_path, &args.theme);
         }
     } else {
         // Normal terminal mode
@@ -175,11 +175,10 @@ fn run_terminal_mode(file_path: &PathBuf, theme: &str, no_pager: bool) {
     }
 }
 
-fn run_terminal_watch_mode(file_path: &PathBuf, theme: &str, _no_pager: bool) {
+fn run_terminal_watch_mode(file_path: &PathBuf, theme: &str) {
     use crossterm::{
-        cursor,
+        ExecutableCommand, cursor,
         terminal::{self, ClearType},
-        ExecutableCommand,
     };
 
     let (tx, mut rx) = broadcast::channel::<()>(16);

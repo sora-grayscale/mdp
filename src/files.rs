@@ -39,25 +39,25 @@ impl FileTree {
                 continue;
             }
 
-            if let Some(ext) = entry_path.extension() {
-                if ext == "md" || ext == "markdown" {
-                    let relative_path = entry_path
-                        .strip_prefix(&base_path)
-                        .unwrap_or(entry_path)
-                        .to_path_buf();
+            if let Some(ext) = entry_path.extension()
+                && (ext == "md" || ext == "markdown")
+            {
+                let relative_path = entry_path
+                    .strip_prefix(&base_path)
+                    .unwrap_or(entry_path)
+                    .to_path_buf();
 
-                    let name = entry_path
-                        .file_stem()
-                        .and_then(|s| s.to_str())
-                        .unwrap_or("untitled")
-                        .to_string();
+                let name = entry_path
+                    .file_stem()
+                    .and_then(|s| s.to_str())
+                    .unwrap_or("untitled")
+                    .to_string();
 
-                    files.push(MarkdownFile {
-                        absolute_path: entry_path.to_path_buf(),
-                        relative_path,
-                        name,
-                    });
-                }
+                files.push(MarkdownFile {
+                    absolute_path: entry_path.to_path_buf(),
+                    relative_path,
+                    name,
+                });
             }
         }
 

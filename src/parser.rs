@@ -383,7 +383,6 @@ fn parse_element(events: &[Event], start: usize) -> (Option<Element>, usize) {
             let mut headers = Vec::new();
             let mut rows = Vec::new();
             let mut index = start + 1;
-            let mut _in_head = false;
             let mut current_row = Vec::new();
             let mut current_cell = String::new();
 
@@ -393,13 +392,11 @@ fn parse_element(events: &[Event], start: usize) -> (Option<Element>, usize) {
                         break;
                     }
                     Event::Start(Tag::TableHead) => {
-                        _in_head = true;
                         current_row = Vec::new();
                     }
                     Event::End(TagEnd::TableHead) => {
                         // TableHead contains cells directly without TableRow in pulldown-cmark 0.10
                         headers = current_row.clone();
-                        _in_head = false;
                     }
                     Event::Start(Tag::TableRow) => {
                         current_row = Vec::new();

@@ -14,12 +14,17 @@ A rich Markdown previewer for the terminal and browser, written in Rust.
 - Bold, italic, strikethrough text
 - Inline code highlighting
 - Automatic paging with less
+- Watch mode with live reload
 
 ### Browser Mode
 - GitHub-style rendering with CSS
+- Dark/Light theme toggle with system preference detection
 - Live reload on file changes
 - Syntax highlighting (powered by highlight.js)
 - Directory mode with sidebar navigation
+- Collapsible folder tree in sidebar
+- External links open in new tab
+- Auto-shutdown when browser tab closes
 
 ### Planned Features
 - KaTeX math rendering
@@ -37,6 +42,10 @@ cd mdp
 cargo build --release
 sudo cp target/release/mdp /usr/local/bin/
 ```
+
+### From Releases
+
+Download the pre-built binary for your platform from the [Releases](https://github.com/sora-grayscale/mdp/releases) page.
 
 ## Usage
 
@@ -56,7 +65,7 @@ mdp -b ./docs
 # Disable pager (output directly)
 mdp --no-pager README.md
 
-# Specify theme
+# Specify theme (terminal mode)
 mdp --theme light README.md
 
 # Show help
@@ -76,9 +85,22 @@ mdp --help
 
 ## Requirements
 
-- Rust 1.70+
+- Rust 1.85+ (edition 2024)
 - A terminal with 24-bit color support (recommended)
 - `less` or another pager (optional)
+
+## Development
+
+```bash
+# Run tests
+cargo test
+
+# Run with clippy
+cargo clippy --all-targets --all-features -- -D warnings
+
+# Format code
+cargo fmt
+```
 
 ## Similar Projects
 
@@ -91,4 +113,3 @@ mdp --help
 ## License
 
 [MIT](./LICENSE)
-
