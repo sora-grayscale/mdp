@@ -26,6 +26,17 @@ unicode-width = "0.1"
 # TTY detection
 atty = "0.2"
 
+# HTTP server for browser mode
+axum = "0.7"
+tokio = { version = "1", features = ["rt-multi-thread", "macros", "net"] }
+tower-http = { version = "0.5", features = ["fs", "cors"] }
+
+# Browser opening
+open = "5"
+
+# HTML escaping
+html-escape = "0.2"
+
 [profile.release]
 opt-level = 3
 lto = true

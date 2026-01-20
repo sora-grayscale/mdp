@@ -6,6 +6,7 @@ use std::process::{self, Command, Stdio};
 
 use mdp::parser::parse_markdown;
 use mdp::renderer::terminal::TerminalRenderer;
+use mdp::server::{find_available_port, start_server};
 
 #[derive(Parser, Debug)]
 #[command(name = "mdp")]
@@ -34,6 +35,10 @@ struct Args {
     /// Disable pager (output directly to stdout)
     #[arg(long)]
     no_pager: bool,
+
+    /// Port for browser mode (default: auto-select)
+    #[arg(short, long, default_value = "3000")]
+    port: u16,
 }
 
 fn main() {
@@ -54,16 +59,25 @@ fn main() {
         }
     };
 
-    // Parse markdown
-    let document = parse_markdown(&content);
+    // Get title from filename
+    let title = args
+        .file
+        .file_stem()
+        .and_then(|s| s.to_str())
+        .unwrap_or("Markdown Preview");
 
     // Render based on mode
     if args.browser {
-        // TODO: Phase 3 - Browser rendering
-        eprintln!("Browser mode not yet implemented. Use terminal mode for now.");
-        process::exit(1);
+        // Browser mode
+        let port = find_available_port(args.port);
+        let rt = tokio::runtime::Runtime::new().expect("Failed to create runtime");
+        if let Err(e) = rt.block_on(start_server(&content, title, port)) {
+            eprintln!("Error: Server failed: {}", e);
+            process::exit(1);
+        }
     } else {
-        // Terminal rendering
+        // Terminal mode
+        let document = parse_markdown(&content);
         let renderer = TerminalRenderer::new(&args.theme);
 
         if args.no_pager || !atty::is(atty::Stream::Stdout) {
@@ -82,8 +96,8 @@ fn main() {
     }
 
     // TODO: Phase 4 - Watch mode
-    if args.watch {
-        eprintln!("Watch mode not yet implemented.");
+    if args.watch && !args.browser {
+        eprintln!("Watch mode not yet implemented for terminal mode.");
     }
 }
 
