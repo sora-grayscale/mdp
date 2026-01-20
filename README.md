@@ -19,9 +19,9 @@ A rich Markdown previewer for the terminal and browser, written in Rust.
 - GitHub-style rendering with CSS
 - Live reload on file changes
 - Syntax highlighting (powered by highlight.js)
+- Directory mode with sidebar navigation
 
 ### Planned Features
-- Directory mode with file navigation
 - KaTeX math rendering
 - Mermaid diagram support
 - Image display (iTerm2/Kitty protocol)
@@ -49,6 +49,9 @@ mdp -b README.md
 
 # Browser mode with live reload
 mdp -bw README.md
+
+# Directory mode (browse multiple files)
+mdp -b ./docs
 
 # Disable pager (output directly)
 mdp --no-pager README.md
@@ -79,13 +82,13 @@ mdp --help
 
 ## Similar Projects
 
-- [glow](https://github.com/charmbracelet/glow) - Render markdown on the CLI (Go)
-- [mdcat](https://github.com/swsnr/mdcat) - cat for markdown (Rust)
-- [grip](https://github.com/joeyespo/grip) - GitHub Readme Instant Preview (Python)
-- [bat](https://github.com/sharkdp/bat) - A cat clone with syntax highlighting (Rust)
-- [rich-cli](https://github.com/Textualize/rich-cli) - Fancy output in the terminal (Python)
+- [glow](https://github.com/charmbracelet/glow) - Terminal markdown viewer with TUI (mdp is simpler, focuses on quick preview)
+- [mdcat](https://github.com/swsnr/mdcat) - Terminal markdown renderer (mdp adds browser mode and live reload)
+- [grip](https://github.com/joeyespo/grip) - GitHub preview via API (mdp works offline, no API needed)
+- [bat](https://github.com/sharkdp/bat) - Syntax highlighter (mdp renders markdown structure, not just highlights)
+- [rich-cli](https://github.com/Textualize/rich-cli) - Rich terminal output (mdp is markdown-focused with browser mode)
 
 ## License
 
-MIT
+[MIT](./LICENSE)
 
