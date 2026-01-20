@@ -7,11 +7,88 @@
     <link rel="stylesheet" href="/assets/github.css">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/github.min.css">
     <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
-    <script>hljs.highlightAll();</script>
+    <style>
+        .reload-indicator {
+            position: fixed;
+            top: 10px;
+            right: 10px;
+            padding: 8px 16px;
+            background: #28a745;
+            color: white;
+            border-radius: 4px;
+            font-size: 12px;
+            opacity: 0;
+            transition: opacity 0.3s;
+            z-index: 9999;
+        }
+        .reload-indicator.show {
+            opacity: 1;
+        }
+        .reload-indicator.disconnected {
+            background: #dc3545;
+        }
+    </style>
 </head>
 <body>
+    <div id="reload-indicator" class="reload-indicator">Connected</div>
     <div class="markdown-body">
         {{CONTENT}}
     </div>
+    <script>
+        hljs.highlightAll();
+
+        // WebSocket for live reload
+        (function() {
+            const indicator = document.getElementById('reload-indicator');
+            let ws;
+            let reconnectAttempts = 0;
+            const maxReconnectAttempts = 10;
+
+            function showIndicator(message, isError) {
+                indicator.textContent = message;
+                indicator.classList.toggle('disconnected', isError);
+                indicator.classList.add('show');
+                setTimeout(() => {
+                    indicator.classList.remove('show');
+                }, 2000);
+            }
+
+            function connect() {
+                const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+                const wsUrl = `${protocol}//${window.location.host}/ws`;
+                ws = new WebSocket(wsUrl);
+
+                ws.onopen = function() {
+                    reconnectAttempts = 0;
+                    showIndicator('Connected', false);
+                };
+
+                ws.onmessage = function(event) {
+                    if (event.data === 'reload') {
+                        showIndicator('Reloading...', false);
+                        setTimeout(() => {
+                            window.location.reload();
+                        }, 100);
+                    }
+                };
+
+                ws.onclose = function() {
+                    if (reconnectAttempts < maxReconnectAttempts) {
+                        reconnectAttempts++;
+                        showIndicator(`Reconnecting (${reconnectAttempts})...`, true);
+                        setTimeout(connect, 1000 * Math.min(reconnectAttempts, 5));
+                    } else {
+                        showIndicator('Disconnected', true);
+                    }
+                };
+
+                ws.onerror = function() {
+                    ws.close();
+                };
+            }
+
+            connect();
+        })();
+    </script>
 </body>
 </html>
