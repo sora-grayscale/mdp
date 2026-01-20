@@ -1,4 +1,4 @@
-use pulldown_cmark::{Event, Options, Parser, Tag, TagEnd, CodeBlockKind, HeadingLevel};
+use pulldown_cmark::{CodeBlockKind, Event, HeadingLevel, Options, Parser, Tag, TagEnd};
 
 /// Represents a parsed Markdown document
 #[derive(Debug, Clone)]
@@ -198,9 +198,18 @@ fn parse_element(events: &[Event], start: usize) -> (Option<Element>, usize) {
                         }
                         inline_elements.push(InlineElement::Strikethrough(text));
                     }
-                    Event::Start(Tag::Link { link_type: _, dest_url, title, id: _ }) => {
+                    Event::Start(Tag::Link {
+                        link_type: _,
+                        dest_url,
+                        title,
+                        id: _,
+                    }) => {
                         let url = dest_url.to_string();
-                        let title = if title.is_empty() { None } else { Some(title.to_string()) };
+                        let title = if title.is_empty() {
+                            None
+                        } else {
+                            Some(title.to_string())
+                        };
                         let mut text = String::new();
                         index += 1;
                         while index < events.len() {
@@ -224,7 +233,12 @@ fn parse_element(events: &[Event], start: usize) -> (Option<Element>, usize) {
                 index += 1;
             }
 
-            (Some(Element::Paragraph { content: inline_elements }), index + 1)
+            (
+                Some(Element::Paragraph {
+                    content: inline_elements,
+                }),
+                index + 1,
+            )
         }
 
         Event::Start(Tag::CodeBlock(kind)) => {
@@ -318,9 +332,15 @@ fn parse_element(events: &[Event], start: usize) -> (Option<Element>, usize) {
                                     }
                                     item_content.push(InlineElement::Emphasis(text));
                                 }
-                                Event::Start(Tag::Link { dest_url, title, .. }) => {
+                                Event::Start(Tag::Link {
+                                    dest_url, title, ..
+                                }) => {
                                     let url = dest_url.to_string();
-                                    let title = if title.is_empty() { None } else { Some(title.to_string()) };
+                                    let title = if title.is_empty() {
+                                        None
+                                    } else {
+                                        Some(title.to_string())
+                                    };
                                     let mut text = String::new();
                                     index += 1;
                                     while index < events.len() {
@@ -348,7 +368,14 @@ fn parse_element(events: &[Event], start: usize) -> (Option<Element>, usize) {
                 index += 1;
             }
 
-            (Some(Element::List { ordered, start: start_num, items }), index + 1)
+            (
+                Some(Element::List {
+                    ordered,
+                    start: start_num,
+                    items,
+                }),
+                index + 1,
+            )
         }
 
         Event::Start(Tag::Table(alignments)) => {
@@ -397,7 +424,14 @@ fn parse_element(events: &[Event], start: usize) -> (Option<Element>, usize) {
                 index += 1;
             }
 
-            (Some(Element::Table { headers, alignments, rows }), index + 1)
+            (
+                Some(Element::Table {
+                    headers,
+                    alignments,
+                    rows,
+                }),
+                index + 1,
+            )
         }
 
         Event::Start(Tag::BlockQuote) => {
@@ -430,13 +464,20 @@ fn parse_element(events: &[Event], start: usize) -> (Option<Element>, usize) {
             (Some(Element::BlockQuote { content }), index + 1)
         }
 
-        Event::Rule => {
-            (Some(Element::HorizontalRule), start + 1)
-        }
+        Event::Rule => (Some(Element::HorizontalRule), start + 1),
 
-        Event::Start(Tag::Image { link_type: _, dest_url, title, id: _ }) => {
+        Event::Start(Tag::Image {
+            link_type: _,
+            dest_url,
+            title,
+            id: _,
+        }) => {
             let url = dest_url.to_string();
-            let title = if title.is_empty() { None } else { Some(title.to_string()) };
+            let title = if title.is_empty() {
+                None
+            } else {
+                Some(title.to_string())
+            };
             let mut alt = String::new();
             let mut index = start + 1;
 

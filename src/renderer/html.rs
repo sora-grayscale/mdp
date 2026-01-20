@@ -1,5 +1,5 @@
-use pulldown_cmark::{html, Options, Parser};
 use crate::files::FileTree;
+use pulldown_cmark::{html, Options, Parser};
 
 const TEMPLATE: &str = include_str!("../../assets/template.html");
 const TEMPLATE_SIDEBAR: &str = include_str!("../../assets/template_sidebar.html");
@@ -76,7 +76,7 @@ impl HtmlRenderer {
                 }
             } else {
                 // Files in a folder
-                let folder_id = dir.replace('/', "_").replace('\\', "_");
+                let folder_id = dir.replace(['/', '\\'], "_");
                 html.push_str(&format!(
                     r#"<div class="sidebar-folder" data-folder="{}">
                         <div class="sidebar-folder-header" onclick="toggleFolder('{}')">
@@ -109,7 +109,7 @@ impl HtmlRenderer {
         is_root: bool,
     ) -> String {
         let path = file.relative_path.to_string_lossy();
-        let is_current = current_file.map_or(false, |c| c == path);
+        let is_current = current_file.is_some_and(|c| c == path);
 
         let mut classes = vec!["sidebar-item"];
         if is_current {

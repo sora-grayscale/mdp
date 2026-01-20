@@ -196,7 +196,10 @@ async fn serve_content(
         Some(content) => {
             let mut headers = HeaderMap::new();
             headers.insert(header::CACHE_CONTROL, "no-store".parse().unwrap());
-            headers.insert(header::CONTENT_TYPE, "text/html; charset=utf-8".parse().unwrap());
+            headers.insert(
+                header::CONTENT_TYPE,
+                "text/html; charset=utf-8".parse().unwrap(),
+            );
             (headers, content).into_response()
         }
         None => (StatusCode::NOT_FOUND, "File not found").into_response(),
@@ -212,10 +215,7 @@ async fn serve_css() -> Response {
         .into_response()
 }
 
-async fn ws_handler(
-    ws: WebSocketUpgrade,
-    State(state): State<Arc<ServerState>>,
-) -> Response {
+async fn ws_handler(ws: WebSocketUpgrade, State(state): State<Arc<ServerState>>) -> Response {
     ws.on_upgrade(move |socket| handle_socket(socket, state))
 }
 

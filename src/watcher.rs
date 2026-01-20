@@ -6,10 +6,7 @@ use std::time::Duration;
 use tokio::sync::broadcast;
 
 /// Watch a file for changes and send notifications
-pub fn watch_file<P: AsRef<Path>>(
-    path: P,
-    tx: broadcast::Sender<()>,
-) -> notify::Result<()> {
+pub fn watch_file<P: AsRef<Path>>(path: P, tx: broadcast::Sender<()>) -> notify::Result<()> {
     let path = path.as_ref().to_path_buf();
     let (debounce_tx, debounce_rx) = channel();
 
@@ -17,7 +14,9 @@ pub fn watch_file<P: AsRef<Path>>(
     let mut debouncer = new_debouncer(Duration::from_millis(200), debounce_tx)?;
 
     // Watch the file
-    debouncer.watcher().watch(&path, RecursiveMode::NonRecursive)?;
+    debouncer
+        .watcher()
+        .watch(&path, RecursiveMode::NonRecursive)?;
 
     println!("Watching for changes: {}", path.display());
 
@@ -70,7 +69,10 @@ pub async fn watch_file_async<P: AsRef<Path>>(
         };
 
         // Watch the file
-        if let Err(e) = debouncer.watcher().watch(&path, RecursiveMode::NonRecursive) {
+        if let Err(e) = debouncer
+            .watcher()
+            .watch(&path, RecursiveMode::NonRecursive)
+        {
             eprintln!("Failed to watch file: {}", e);
             return;
         }
