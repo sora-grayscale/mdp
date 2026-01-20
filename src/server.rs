@@ -9,12 +9,16 @@ use axum::{
     Json, Router,
 };
 use serde::{Deserialize, Serialize};
+use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::Arc;
 use tokio::sync::broadcast;
 
 use crate::files::FileTree;
 use crate::renderer::html::HtmlRenderer;
 use crate::watcher::watch_file_async;
+
+/// Timeout in seconds before shutting down when all clients disconnect
+const SHUTDOWN_TIMEOUT_SECS: u64 = 3;
 
 #[derive(Serialize)]
 pub struct FileInfo {
@@ -38,6 +42,8 @@ pub struct ServerState {
     pub file_tree: FileTree,
     pub title: String,
     pub reload_tx: broadcast::Sender<()>,
+    pub shutdown_tx: broadcast::Sender<()>,
+    pub connection_count: AtomicUsize,
 }
 
 impl ServerState {
@@ -79,11 +85,14 @@ pub async fn start_server(
     watch: bool,
 ) -> std::io::Result<()> {
     let (reload_tx, _) = broadcast::channel::<()>(16);
+    let (shutdown_tx, mut shutdown_rx) = broadcast::channel::<()>(1);
 
     let state = Arc::new(ServerState {
         file_tree: file_tree.clone(),
         title: title.to_string(),
         reload_tx: reload_tx.clone(),
+        shutdown_tx: shutdown_tx.clone(),
+        connection_count: AtomicUsize::new(0),
     });
 
     // Start file watcher if watch mode is enabled
@@ -127,7 +136,7 @@ pub async fn start_server(
     if watch {
         println!("Live reload enabled - changes will auto-refresh");
     }
-    println!("Press Ctrl+C to stop");
+    println!("Press Ctrl+C to stop (or close browser tab)");
 
     // Open browser
     if let Err(e) = open::that(format!("http://{}", addr)) {
@@ -135,7 +144,14 @@ pub async fn start_server(
         println!("Please open http://{} in your browser", addr);
     }
 
-    axum::serve(listener, app).await?;
+    // Run server with graceful shutdown
+    axum::serve(listener, app)
+        .with_graceful_shutdown(async move {
+            // Wait for shutdown signal
+            let _ = shutdown_rx.recv().await;
+            println!("\nShutting down server...");
+        })
+        .await?;
 
     Ok(())
 }
@@ -204,6 +220,12 @@ async fn ws_handler(
 }
 
 async fn handle_socket(mut socket: WebSocket, state: Arc<ServerState>) {
+    // Increment connection count
+    let prev_count = state.connection_count.fetch_add(1, Ordering::SeqCst);
+    if prev_count == 0 {
+        // First connection or reconnection after all disconnected
+    }
+
     let mut rx = state.reload_tx.subscribe();
 
     // Send initial connection confirmation
@@ -236,6 +258,26 @@ async fn handle_socket(mut socket: WebSocket, state: Arc<ServerState>) {
                 }
             }
         }
+    }
+
+    // Decrement connection count
+    let prev_count = state.connection_count.fetch_sub(1, Ordering::SeqCst);
+
+    // If this was the last connection, start shutdown timer
+    if prev_count == 1 {
+        let shutdown_tx = state.shutdown_tx.clone();
+        let state_for_timer = state.clone();
+
+        tokio::spawn(async move {
+            // Wait for timeout
+            tokio::time::sleep(tokio::time::Duration::from_secs(SHUTDOWN_TIMEOUT_SECS)).await;
+
+            // Check if still no connections
+            if state_for_timer.connection_count.load(Ordering::SeqCst) == 0 {
+                println!("All browser tabs closed. Shutting down...");
+                let _ = shutdown_tx.send(());
+            }
+        });
     }
 }
 
