@@ -15,14 +15,17 @@ A rich Markdown previewer for the terminal and browser, written in Rust.
 - Inline code highlighting
 - Automatic paging with less
 
+### Browser Mode
+- GitHub-style rendering with CSS
+- Live reload on file changes
+- Syntax highlighting (powered by highlight.js)
+
 ### Planned Features
-- Browser mode with live reload
-- File watching for auto-refresh
+- Directory mode with file navigation
 - KaTeX math rendering
 - Mermaid diagram support
 - Image display (iTerm2/Kitty protocol)
 - Table of contents generation
-- Theme customization (dark/light)
 
 ## Installation
 
@@ -38,8 +41,14 @@ sudo cp target/release/mdp /usr/local/bin/
 ## Usage
 
 ```bash
-# Basic usage
+# Basic usage (terminal)
 mdp README.md
+
+# Browser mode
+mdp -b README.md
+
+# Browser mode with live reload
+mdp -bw README.md
 
 # Disable pager (output directly)
 mdp --no-pager README.md
@@ -55,11 +64,12 @@ mdp --help
 
 | Option | Description |
 |--------|-------------|
-| `-w, --watch` | Watch for file changes (not yet implemented) |
-| `-b, --browser` | Open in browser (not yet implemented) |
-| `--toc` | Show table of contents (not yet implemented) |
+| `-b, --browser` | Open in browser with GitHub-style rendering |
+| `-w, --watch` | Watch for file changes and auto-reload |
+| `-p, --port <PORT>` | Port for browser mode (default: 3000) |
 | `--theme <THEME>` | Theme: dark or light (default: dark) |
 | `--no-pager` | Disable pager, output directly to stdout |
+| `--toc` | Show table of contents (not yet implemented) |
 
 ## Requirements
 
@@ -67,6 +77,15 @@ mdp --help
 - A terminal with 24-bit color support (recommended)
 - `less` or another pager (optional)
 
+## Similar Projects
+
+- [glow](https://github.com/charmbracelet/glow) - Render markdown on the CLI (Go)
+- [mdcat](https://github.com/swsnr/mdcat) - cat for markdown (Rust)
+- [grip](https://github.com/joeyespo/grip) - GitHub Readme Instant Preview (Python)
+- [bat](https://github.com/sharkdp/bat) - A cat clone with syntax highlighting (Rust)
+- [rich-cli](https://github.com/Textualize/rich-cli) - Fancy output in the terminal (Python)
+
 ## License
 
 MIT
+
