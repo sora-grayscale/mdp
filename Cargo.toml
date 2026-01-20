@@ -1,0 +1,33 @@
+[package]
+name = "mdp"
+version = "0.1.0"
+edition = "2021"
+description = "A rich Markdown previewer for the terminal and browser"
+authors = ["Your Name"]
+license = "MIT"
+
+[dependencies]
+# CLI
+clap = { version = "4", features = ["derive"] }
+
+# Markdown
+pulldown-cmark = { version = "0.10", features = ["simd"] }
+
+# Syntax highlighting
+syntect = "5"
+
+# Terminal
+crossterm = "0.27"
+textwrap = "0.16"
+
+# Unicode width for proper alignment
+unicode-width = "0.1"
+
+# TTY detection
+atty = "0.2"
+
+[profile.release]
+opt-level = 3
+lto = true
+codegen-units = 1
+strip = true
