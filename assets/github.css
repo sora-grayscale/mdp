@@ -1,37 +1,147 @@
-/* GitHub-style Markdown CSS */
+/* GitHub-style Markdown CSS with Theme Support */
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
 
+/* Light Theme (default) */
 :root {
+    /* Foreground colors */
     --color-fg-default: #1f2328;
     --color-fg-muted: #656d76;
     --color-fg-subtle: #6e7781;
+
+    /* Background colors */
     --color-canvas-default: #ffffff;
     --color-canvas-subtle: #f6f8fa;
+    --color-canvas-inset: #eff2f5;
+
+    /* Border colors */
     --color-border-default: #d0d7de;
     --color-border-muted: #d8dee4;
+    --color-border-subtle: #eaeef2;
+
+    /* Accent colors */
     --color-accent-fg: #0969da;
     --color-accent-emphasis: #0969da;
+    --color-accent-subtle: #ddf4ff;
+
+    /* Semantic colors */
     --color-success-fg: #1a7f37;
+    --color-success-subtle: #dafbe1;
     --color-attention-fg: #9a6700;
+    --color-attention-subtle: #fff8c5;
     --color-danger-fg: #d1242f;
+    --color-danger-subtle: #ffebe9;
     --color-done-fg: #8250df;
+    --color-done-subtle: #fbefff;
+
+    /* Heading colors */
+    --color-heading-1: #1f2328;
+    --color-heading-2: #24292f;
+    --color-heading-border: #d8dee4;
+    --color-heading-accent: linear-gradient(90deg, #0969da 0%, #8250df 100%);
+
+    /* Code colors */
+    --color-code-bg: #f6f8fa;
+    --color-code-border: #d0d7de;
+
+    /* Shadow */
+    --shadow-sm: 0 1px 2px rgba(27, 31, 36, 0.04);
+    --shadow-md: 0 3px 6px rgba(140, 149, 159, 0.15);
 }
 
+/* Dark Theme */
+[data-theme="dark"],
+.dark-theme {
+    /* Foreground colors */
+    --color-fg-default: #e6edf3;
+    --color-fg-muted: #9198a1;
+    --color-fg-subtle: #6e7681;
+
+    /* Background colors */
+    --color-canvas-default: #0d1117;
+    --color-canvas-subtle: #161b22;
+    --color-canvas-inset: #010409;
+
+    /* Border colors */
+    --color-border-default: #30363d;
+    --color-border-muted: #21262d;
+    --color-border-subtle: #21262d;
+
+    /* Accent colors */
+    --color-accent-fg: #58a6ff;
+    --color-accent-emphasis: #1f6feb;
+    --color-accent-subtle: #388bfd26;
+
+    /* Semantic colors */
+    --color-success-fg: #3fb950;
+    --color-success-subtle: #23883826;
+    --color-attention-fg: #d29922;
+    --color-attention-subtle: #bb800926;
+    --color-danger-fg: #f85149;
+    --color-danger-subtle: #f8514926;
+    --color-done-fg: #a371f7;
+    --color-done-subtle: #8957e526;
+
+    /* Heading colors */
+    --color-heading-1: #f0f6fc;
+    --color-heading-2: #e6edf3;
+    --color-heading-border: #30363d;
+    --color-heading-accent: linear-gradient(90deg, #58a6ff 0%, #a371f7 100%);
+
+    /* Code colors */
+    --color-code-bg: #161b22;
+    --color-code-border: #30363d;
+
+    /* Shadow */
+    --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.3);
+    --shadow-md: 0 3px 6px rgba(0, 0, 0, 0.4);
+}
+
+/* System preference fallback (when no explicit theme is set) */
 @media (prefers-color-scheme: dark) {
-    :root {
+    :root:not([data-theme="light"]):not(.light-theme) {
+        /* Foreground colors */
         --color-fg-default: #e6edf3;
-        --color-fg-muted: #8d96a0;
+        --color-fg-muted: #9198a1;
         --color-fg-subtle: #6e7681;
+
+        /* Background colors */
         --color-canvas-default: #0d1117;
         --color-canvas-subtle: #161b22;
+        --color-canvas-inset: #010409;
+
+        /* Border colors */
         --color-border-default: #30363d;
         --color-border-muted: #21262d;
+        --color-border-subtle: #21262d;
+
+        /* Accent colors */
         --color-accent-fg: #58a6ff;
         --color-accent-emphasis: #1f6feb;
+        --color-accent-subtle: #388bfd26;
+
+        /* Semantic colors */
         --color-success-fg: #3fb950;
+        --color-success-subtle: #23883826;
         --color-attention-fg: #d29922;
+        --color-attention-subtle: #bb800926;
         --color-danger-fg: #f85149;
+        --color-danger-subtle: #f8514926;
         --color-done-fg: #a371f7;
+        --color-done-subtle: #8957e526;
+
+        /* Heading colors */
+        --color-heading-1: #f0f6fc;
+        --color-heading-2: #e6edf3;
+        --color-heading-border: #30363d;
+        --color-heading-accent: linear-gradient(90deg, #58a6ff 0%, #a371f7 100%);
+
+        /* Code colors */
+        --color-code-bg: #161b22;
+        --color-code-border: #30363d;
+
+        /* Shadow */
+        --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.3);
+        --shadow-md: 0 3px 6px rgba(0, 0, 0, 0.4);
     }
 }
 
@@ -47,6 +157,7 @@ body {
     background-color: var(--color-canvas-default);
     margin: 0;
     padding: 0;
+    transition: background-color 0.3s ease, color 0.3s ease;
 }
 
 .markdown-body {
@@ -61,6 +172,71 @@ body {
     }
 }
 
+/* Theme Toggle Button */
+.theme-toggle {
+    position: fixed;
+    top: 12px;
+    right: 12px;
+    z-index: 1000;
+    width: 40px;
+    height: 40px;
+    border: none;
+    border-radius: 50%;
+    background: var(--color-canvas-subtle);
+    border: 1px solid var(--color-border-default);
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.3s ease;
+    box-shadow: var(--shadow-md);
+}
+
+.theme-toggle:hover {
+    transform: scale(1.1);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+}
+
+.theme-toggle svg {
+    width: 20px;
+    height: 20px;
+    fill: var(--color-fg-muted);
+    transition: transform 0.3s ease;
+}
+
+.theme-toggle:hover svg {
+    fill: var(--color-accent-fg);
+}
+
+/* Sun icon (shown in dark mode) */
+.theme-toggle .icon-sun {
+    display: none;
+}
+
+/* Moon icon (shown in light mode) */
+.theme-toggle .icon-moon {
+    display: block;
+}
+
+[data-theme="dark"] .theme-toggle .icon-sun,
+.dark-theme .theme-toggle .icon-sun {
+    display: block;
+}
+
+[data-theme="dark"] .theme-toggle .icon-moon,
+.dark-theme .theme-toggle .icon-moon {
+    display: none;
+}
+
+@media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]):not(.light-theme) .theme-toggle .icon-sun {
+        display: block;
+    }
+    :root:not([data-theme="light"]):not(.light-theme) .theme-toggle .icon-moon {
+        display: none;
+    }
+}
+
 /* Headings */
 .markdown-body h1,
 .markdown-body h2,
@@ -72,35 +248,56 @@ body {
     margin-bottom: 16px;
     font-weight: 600;
     line-height: 1.25;
+    position: relative;
 }
 
 .markdown-body h1 {
     font-size: 2em;
     padding-bottom: 0.3em;
-    border-bottom: 1px solid var(--color-border-muted);
+    border-bottom: 2px solid transparent;
+    border-image: var(--color-heading-accent);
+    border-image-slice: 1;
+    color: var(--color-heading-1);
 }
 
 .markdown-body h2 {
     font-size: 1.5em;
     padding-bottom: 0.3em;
-    border-bottom: 1px solid var(--color-border-muted);
+    border-bottom: 1px solid var(--color-heading-border);
+    color: var(--color-heading-2);
 }
 
 .markdown-body h3 {
     font-size: 1.25em;
+    color: var(--color-fg-default);
+}
+
+.markdown-body h3::before {
+    content: '';
+    position: absolute;
+    left: -16px;
+    top: 50%;
+    transform: translateY(-50%);
+    width: 4px;
+    height: 60%;
+    background: var(--color-heading-accent);
+    border-radius: 2px;
+    opacity: 0.7;
 }
 
 .markdown-body h4 {
     font-size: 1em;
+    color: var(--color-fg-default);
 }
 
 .markdown-body h5 {
     font-size: 0.875em;
+    color: var(--color-fg-muted);
 }
 
 .markdown-body h6 {
     font-size: 0.85em;
-    color: var(--color-fg-muted);
+    color: var(--color-fg-subtle);
 }
 
 /* Paragraphs and text */
@@ -112,6 +309,7 @@ body {
 .markdown-body a {
     color: var(--color-accent-fg);
     text-decoration: none;
+    transition: color 0.2s ease;
 }
 
 .markdown-body a:hover {
@@ -120,6 +318,7 @@ body {
 
 .markdown-body strong {
     font-weight: 600;
+    color: var(--color-fg-default);
 }
 
 .markdown-body em {
@@ -128,6 +327,7 @@ body {
 
 .markdown-body del {
     text-decoration: line-through;
+    color: var(--color-fg-muted);
 }
 
 /* Code */
@@ -136,8 +336,10 @@ body {
     font-size: 85%;
     padding: 0.2em 0.4em;
     margin: 0;
-    background-color: var(--color-canvas-subtle);
+    background-color: var(--color-code-bg);
+    border: 1px solid var(--color-code-border);
     border-radius: 6px;
+    transition: background-color 0.3s ease, border-color 0.3s ease;
 }
 
 .markdown-body pre {
@@ -146,10 +348,13 @@ body {
     padding: 16px;
     overflow: auto;
     line-height: 1.45;
-    background-color: var(--color-canvas-subtle);
-    border-radius: 6px;
+    background-color: var(--color-code-bg);
+    border: 1px solid var(--color-code-border);
+    border-radius: 8px;
     margin-top: 0;
     margin-bottom: 16px;
+    box-shadow: var(--shadow-sm);
+    transition: background-color 0.3s ease, border-color 0.3s ease;
 }
 
 .markdown-body pre code {
@@ -190,9 +395,12 @@ body {
 /* Blockquote */
 .markdown-body blockquote {
     margin: 0 0 16px 0;
-    padding: 0 1em;
+    padding: 0.5em 1em;
     color: var(--color-fg-muted);
-    border-left: 0.25em solid var(--color-border-default);
+    background-color: var(--color-canvas-subtle);
+    border-left: 4px solid var(--color-accent-fg);
+    border-radius: 0 8px 8px 0;
+    transition: background-color 0.3s ease, border-color 0.3s ease;
 }
 
 .markdown-body blockquote > :first-child {
@@ -213,64 +421,74 @@ body {
     max-width: 100%;
     overflow: auto;
     display: block;
+    border-radius: 8px;
+    box-shadow: var(--shadow-sm);
 }
 
 .markdown-body table th {
     font-weight: 600;
-    padding: 6px 13px;
+    padding: 10px 16px;
     border: 1px solid var(--color-border-default);
     background-color: var(--color-canvas-subtle);
+    text-align: left;
 }
 
 .markdown-body table td {
-    padding: 6px 13px;
+    padding: 10px 16px;
     border: 1px solid var(--color-border-default);
 }
 
 .markdown-body table tr {
     background-color: var(--color-canvas-default);
     border-top: 1px solid var(--color-border-muted);
+    transition: background-color 0.2s ease;
 }
 
 .markdown-body table tr:nth-child(2n) {
     background-color: var(--color-canvas-subtle);
 }
 
+.markdown-body table tr:hover {
+    background-color: var(--color-accent-subtle);
+}
+
 /* Horizontal rule */
 .markdown-body hr {
-    height: 0.25em;
+    height: 0;
     padding: 0;
-    margin: 24px 0;
-    background-color: var(--color-border-default);
+    margin: 32px 0;
     border: 0;
+    border-top: 2px solid var(--color-border-default);
+    background: transparent;
 }
 
 /* Images */
 .markdown-body img {
     max-width: 100%;
     box-sizing: border-box;
-    border-radius: 6px;
+    border-radius: 8px;
+    box-shadow: var(--shadow-md);
 }
 
 /* Task lists */
 .markdown-body input[type="checkbox"] {
     margin: 0 0.2em 0.25em -1.4em;
     vertical-align: middle;
+    accent-color: var(--color-accent-fg);
 }
 
 /* Keyboard */
 .markdown-body kbd {
     display: inline-block;
-    padding: 3px 5px;
+    padding: 4px 8px;
     font: 11px ui-monospace, SFMono-Regular, 'SF Mono', Menlo, Consolas, 'Liberation Mono', monospace;
-    line-height: 10px;
+    line-height: 1;
     color: var(--color-fg-default);
     vertical-align: middle;
     background-color: var(--color-canvas-subtle);
-    border: solid 1px var(--color-border-default);
-    border-bottom-color: var(--color-border-default);
+    border: 1px solid var(--color-border-default);
     border-radius: 6px;
-    box-shadow: inset 0 -1px 0 var(--color-border-default);
+    box-shadow: inset 0 -2px 0 var(--color-border-default);
 }
 
 /* Definition lists */
@@ -289,4 +507,28 @@ body {
 .markdown-body dl dd {
     padding: 0 16px;
     margin-bottom: 16px;
+}
+
+/* Selection */
+::selection {
+    background-color: var(--color-accent-subtle);
+    color: var(--color-fg-default);
+}
+
+/* Focus styles */
+.markdown-body a:focus {
+    outline: 2px solid var(--color-accent-fg);
+    outline-offset: 2px;
+    border-radius: 2px;
+}
+
+/* Print styles */
+@media print {
+    body {
+        background: white;
+        color: black;
+    }
+    .theme-toggle {
+        display: none;
+    }
 }
