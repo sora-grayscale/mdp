@@ -100,3 +100,64 @@ pub async fn watch_file_async<P: AsRef<Path>>(
 
     Ok(())
 }
+
+/// Watch a directory recursively for .md file changes
+pub async fn watch_directory_async<P: AsRef<Path>>(
+    path: P,
+    tx: broadcast::Sender<()>,
+) -> notify::Result<()> {
+    let path = path.as_ref().to_path_buf();
+
+    println!("Watching directory for changes: {}", path.display());
+
+    // Spawn blocking task for directory watching
+    tokio::task::spawn_blocking(move || {
+        let (debounce_tx, debounce_rx) = channel();
+
+        // Create a debouncer with 200ms delay
+        let mut debouncer = match new_debouncer(Duration::from_millis(200), debounce_tx) {
+            Ok(d) => d,
+            Err(e) => {
+                eprintln!("Failed to create debouncer: {}", e);
+                return;
+            }
+        };
+
+        // Watch the directory recursively
+        if let Err(e) = debouncer.watcher().watch(&path, RecursiveMode::Recursive) {
+            eprintln!("Failed to watch directory: {}", e);
+            return;
+        }
+
+        loop {
+            match debounce_rx.recv() {
+                Ok(Ok(events)) => {
+                    // Filter for markdown files only
+                    let md_changed = events.iter().any(|e| {
+                        if e.kind == DebouncedEventKind::Any {
+                            if let Some(ext) = e.path.extension() {
+                                return ext == "md" || ext == "markdown";
+                            }
+                        }
+                        false
+                    });
+
+                    if md_changed {
+                        println!("Markdown file changed, reloading...");
+                        let _ = tx.send(());
+                    }
+                }
+                Ok(Err(e)) => {
+                    eprintln!("Watch error: {:?}", e);
+                }
+                Err(_) => {
+                    break;
+                }
+            }
+        }
+
+        drop(debouncer);
+    });
+
+    Ok(())
+}

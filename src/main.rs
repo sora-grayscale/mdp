@@ -5,6 +5,7 @@ use std::path::PathBuf;
 use std::process::{self, Command, Stdio};
 use tokio::sync::broadcast;
 
+use mdp::files::FileTree;
 use mdp::parser::parse_markdown;
 use mdp::renderer::terminal::TerminalRenderer;
 use mdp::server::{find_available_port, start_server};
@@ -14,9 +15,9 @@ use mdp::watcher::watch_file;
 #[command(name = "mdp")]
 #[command(author, version, about = "A rich Markdown previewer for the terminal and browser")]
 struct Args {
-    /// Markdown file to preview
+    /// Markdown file or directory to preview
     #[arg(required = true)]
-    file: PathBuf,
+    path: PathBuf,
 
     /// Watch for file changes and re-render
     #[arg(short, long)]
@@ -47,54 +48,90 @@ fn main() {
     let args = Args::parse();
 
     // Check if path exists
-    if !args.file.exists() {
-        eprintln!("Error: File not found: {}", args.file.display());
+    if !args.path.exists() {
+        eprintln!("Error: Path not found: {}", args.path.display());
         process::exit(1);
     }
 
-    // Check if it's a directory
-    if args.file.is_dir() {
-        eprintln!("Error: '{}' is a directory", args.file.display());
-        eprintln!("Hint: Specify a markdown file, e.g., mdp README.md");
-        eprintln!("      Directory mode coming soon! (Issue #6)");
-        process::exit(1);
-    }
-
-    // Get absolute path
-    let file_path = args.file.canonicalize().unwrap_or_else(|_| args.file.clone());
-
-    // Warn if file is not .md
-    if let Some(ext) = file_path.extension() {
-        if ext != "md" && ext != "markdown" {
-            eprintln!("Warning: '{}' is not a markdown file (.md)", args.file.display());
-            eprintln!("         Proceeding anyway...\n");
+    // Build file tree (works for both file and directory)
+    let file_tree = if args.path.is_dir() {
+        match FileTree::from_directory(&args.path) {
+            Ok(tree) => {
+                if tree.files.is_empty() {
+                    eprintln!("Error: No markdown files found in '{}'", args.path.display());
+                    process::exit(1);
+                }
+                tree
+            }
+            Err(e) => {
+                eprintln!("Error: Failed to scan directory: {}", e);
+                process::exit(1);
+            }
         }
     } else {
-        eprintln!("Warning: '{}' has no extension, treating as markdown\n", args.file.display());
-    }
+        // Single file mode
+        // Warn if file is not .md
+        if let Some(ext) = args.path.extension() {
+            if ext != "md" && ext != "markdown" {
+                eprintln!("Warning: '{}' is not a markdown file (.md)", args.path.display());
+                eprintln!("         Proceeding anyway...\n");
+            }
+        } else {
+            eprintln!("Warning: '{}' has no extension, treating as markdown\n", args.path.display());
+        }
 
-    // Get title from filename
-    let title = file_path
-        .file_stem()
-        .and_then(|s| s.to_str())
-        .unwrap_or("Markdown Preview")
-        .to_string();
+        match FileTree::from_file(&args.path) {
+            Ok(tree) => tree,
+            Err(e) => {
+                eprintln!("Error: Failed to read file: {}", e);
+                process::exit(1);
+            }
+        }
+    };
+
+    // Get title from directory name or filename
+    let title = if args.path.is_dir() {
+        args.path
+            .file_name()
+            .and_then(|s| s.to_str())
+            .unwrap_or("Markdown Preview")
+            .to_string()
+    } else {
+        args.path
+            .file_stem()
+            .and_then(|s| s.to_str())
+            .unwrap_or("Markdown Preview")
+            .to_string()
+    };
 
     // Render based on mode
     if args.browser {
         // Browser mode (with optional watch)
         let port = find_available_port(args.port);
         let rt = tokio::runtime::Runtime::new().expect("Failed to create runtime");
-        if let Err(e) = rt.block_on(start_server(file_path, &title, port, args.watch)) {
+        if let Err(e) = rt.block_on(start_server(file_tree, &title, port, args.watch)) {
             eprintln!("Error: Server failed: {}", e);
             process::exit(1);
         }
     } else if args.watch {
-        // Terminal watch mode
-        run_terminal_watch_mode(&file_path, &args.theme, args.no_pager);
+        // Terminal watch mode (single file only for now)
+        if let Some(file) = file_tree.default_file() {
+            run_terminal_watch_mode(&file.absolute_path, &args.theme, args.no_pager);
+        }
     } else {
         // Normal terminal mode
-        run_terminal_mode(&file_path, &args.theme, args.no_pager);
+        if file_tree.is_single_file() {
+            if let Some(file) = file_tree.default_file() {
+                run_terminal_mode(&file.absolute_path, &args.theme, args.no_pager);
+            }
+        } else {
+            // Directory mode in terminal - list files
+            println!("Found {} markdown files in '{}':\n", file_tree.files.len(), args.path.display());
+            for (i, file) in file_tree.files.iter().enumerate() {
+                println!("  {}. {}", i + 1, file.relative_path.display());
+            }
+            println!("\nUse -b flag for browser mode with navigation sidebar.");
+        }
     }
 }
 
