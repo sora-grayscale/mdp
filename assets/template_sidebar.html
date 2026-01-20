@@ -1,0 +1,276 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{TITLE}}</title>
+    <link rel="stylesheet" href="/assets/github.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/github.min.css">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
+    <style>
+        * {
+            box-sizing: border-box;
+        }
+        html, body {
+            margin: 0;
+            padding: 0;
+            height: 100%;
+            overflow: hidden;
+        }
+        .container {
+            display: flex;
+            height: 100vh;
+        }
+        .sidebar {
+            width: 250px;
+            min-width: 200px;
+            max-width: 400px;
+            background: #f6f8fa;
+            border-right: 1px solid #d0d7de;
+            overflow-y: auto;
+            padding: 16px 0;
+            flex-shrink: 0;
+        }
+        .sidebar-header {
+            padding: 0 16px 12px;
+            font-weight: 600;
+            font-size: 14px;
+            color: #24292f;
+            border-bottom: 1px solid #d0d7de;
+            margin-bottom: 8px;
+        }
+        .sidebar-folder {
+            padding: 6px 16px;
+            font-size: 12px;
+            color: #57606a;
+            font-weight: 500;
+            margin-top: 8px;
+        }
+        .sidebar-item {
+            display: block;
+            padding: 8px 16px 8px 24px;
+            color: #24292f;
+            text-decoration: none;
+            font-size: 14px;
+            cursor: pointer;
+            border-left: 3px solid transparent;
+        }
+        .sidebar-item:hover {
+            background: #eaeef2;
+        }
+        .sidebar-item.active {
+            background: #ddf4ff;
+            border-left-color: #0969da;
+            font-weight: 500;
+        }
+        .main-content {
+            flex: 1;
+            overflow-y: auto;
+            padding: 32px 48px;
+            max-width: 100%;
+        }
+        .markdown-body {
+            max-width: 980px;
+            margin: 0 auto;
+        }
+        .reload-indicator {
+            position: fixed;
+            top: 10px;
+            right: 10px;
+            padding: 8px 16px;
+            background: #28a745;
+            color: white;
+            border-radius: 4px;
+            font-size: 12px;
+            opacity: 0;
+            transition: opacity 0.3s;
+            z-index: 9999;
+        }
+        .reload-indicator.show {
+            opacity: 1;
+        }
+        .reload-indicator.disconnected {
+            background: #dc3545;
+        }
+        /* Resizer */
+        .resizer {
+            width: 4px;
+            background: transparent;
+            cursor: col-resize;
+            flex-shrink: 0;
+        }
+        .resizer:hover {
+            background: #0969da;
+        }
+        /* Dark mode support */
+        @media (prefers-color-scheme: dark) {
+            .sidebar {
+                background: #161b22;
+                border-right-color: #30363d;
+            }
+            .sidebar-header {
+                color: #c9d1d9;
+                border-bottom-color: #30363d;
+            }
+            .sidebar-folder {
+                color: #8b949e;
+            }
+            .sidebar-item {
+                color: #c9d1d9;
+            }
+            .sidebar-item:hover {
+                background: #21262d;
+            }
+            .sidebar-item.active {
+                background: #388bfd26;
+                border-left-color: #58a6ff;
+            }
+            .main-content {
+                background: #0d1117;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div id="reload-indicator" class="reload-indicator">Connected</div>
+    <div class="container">
+        <div class="sidebar">
+            <div class="sidebar-header">📂 {{TITLE}}</div>
+            {{SIDEBAR}}
+        </div>
+        <div class="resizer" id="resizer"></div>
+        <div class="main-content">
+            <div class="markdown-body" id="content">
+                {{CONTENT}}
+            </div>
+        </div>
+    </div>
+    <script>
+        hljs.highlightAll();
+
+        // Current file path
+        let currentFile = null;
+
+        // Load file via AJAX
+        async function loadFile(path) {
+            try {
+                const response = await fetch('/api/content?file=' + encodeURIComponent(path));
+                if (!response.ok) throw new Error('File not found');
+
+                const html = await response.text();
+                document.getElementById('content').innerHTML = html;
+
+                // Update active state in sidebar
+                document.querySelectorAll('.sidebar-item').forEach(item => {
+                    item.classList.toggle('active', item.dataset.path === path);
+                });
+
+                // Update URL without reload
+                const url = new URL(window.location);
+                url.searchParams.set('file', path);
+                history.pushState({file: path}, '', url);
+
+                // Update current file
+                currentFile = path;
+
+                // Re-highlight code blocks
+                hljs.highlightAll();
+            } catch (e) {
+                console.error('Failed to load file:', e);
+            }
+        }
+
+        // Handle browser back/forward
+        window.addEventListener('popstate', (event) => {
+            if (event.state && event.state.file) {
+                loadFile(event.state.file);
+            }
+        });
+
+        // Initialize current file from URL
+        const urlParams = new URLSearchParams(window.location.search);
+        currentFile = urlParams.get('file');
+
+        // Resizer functionality
+        const resizer = document.getElementById('resizer');
+        const sidebar = document.querySelector('.sidebar');
+        let isResizing = false;
+
+        resizer.addEventListener('mousedown', (e) => {
+            isResizing = true;
+            document.body.style.cursor = 'col-resize';
+            document.body.style.userSelect = 'none';
+        });
+
+        document.addEventListener('mousemove', (e) => {
+            if (!isResizing) return;
+            const newWidth = e.clientX;
+            if (newWidth >= 150 && newWidth <= 500) {
+                sidebar.style.width = newWidth + 'px';
+            }
+        });
+
+        document.addEventListener('mouseup', () => {
+            isResizing = false;
+            document.body.style.cursor = '';
+            document.body.style.userSelect = '';
+        });
+
+        // WebSocket for live reload
+        (function() {
+            const indicator = document.getElementById('reload-indicator');
+            let ws;
+            let reconnectAttempts = 0;
+            const maxReconnectAttempts = 10;
+
+            function showIndicator(message, isError) {
+                indicator.textContent = message;
+                indicator.classList.toggle('disconnected', isError);
+                indicator.classList.add('show');
+                setTimeout(() => {
+                    indicator.classList.remove('show');
+                }, 2000);
+            }
+
+            function connect() {
+                const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+                const wsUrl = `${protocol}//${window.location.host}/ws`;
+                ws = new WebSocket(wsUrl);
+
+                ws.onopen = function() {
+                    reconnectAttempts = 0;
+                    showIndicator('Connected', false);
+                };
+
+                ws.onmessage = function(event) {
+                    if (event.data === 'reload') {
+                        showIndicator('Reloading...', false);
+                        // Reload current file content instead of full page reload
+                        if (currentFile) {
+                            loadFile(currentFile);
+                        } else {
+                            window.location.reload();
+                        }
+                    }
+                };
+
+                ws.onclose = function() {
+                    if (reconnectAttempts < maxReconnectAttempts) {
+                        reconnectAttempts++;
+                        showIndicator(`Reconnecting (${reconnectAttempts})...`, true);
+                        setTimeout(connect, 1000 * Math.min(reconnectAttempts, 5));
+                    } else {
+                        showIndicator('Disconnected', true);
+                    }
+                };
+
+                ws.onerror = function() {
+                    ws.close();
+                };
+            }
+
+            connect();
+        })();
+    </script>
+</body>
+</html>
