@@ -5,6 +5,10 @@ const TEMPLATE: &str = include_str!("../../assets/template.html");
 const TEMPLATE_SIDEBAR: &str = include_str!("../../assets/template_sidebar.html");
 const CSS: &str = include_str!("../../assets/github.css");
 
+// SVG icons for the sidebar
+const ICON_FILE: &str = r#"<svg class="sidebar-item-icon" viewBox="0 0 16 16"><path d="M2 1.75C2 .784 2.784 0 3.75 0h6.586c.464 0 .909.184 1.237.513l2.914 2.914c.329.328.513.773.513 1.237v9.586A1.75 1.75 0 0 1 13.25 16h-9.5A1.75 1.75 0 0 1 2 14.25Zm1.75-.25a.25.25 0 0 0-.25.25v12.5c0 .138.112.25.25.25h9.5a.25.25 0 0 0 .25-.25V6h-2.75A1.75 1.75 0 0 1 9 4.25V1.5Zm6.75.062V4.25c0 .138.112.25.25.25h2.688l-.011-.013-2.914-2.914-.013-.011Z"/></svg>"#;
+const ICON_CHEVRON: &str = r#"<svg class="sidebar-folder-icon" viewBox="0 0 16 16"><path d="M12.78 5.22a.749.749 0 0 1 0 1.06l-4.25 4.25a.749.749 0 0 1-1.06 0L3.22 6.28a.749.749 0 1 1 1.06-1.06L8 8.939l3.72-3.719a.749.749 0 0 1 1.06 0Z"/></svg>"#;
+
 pub struct HtmlRenderer {
     title: String,
 }
@@ -65,33 +69,67 @@ impl HtmlRenderer {
 
         // Render file tree
         for (dir, files) in &dirs {
-            if !dir.is_empty() {
+            if dir.is_empty() {
+                // Root level files
+                for file in files {
+                    html.push_str(&self.render_file_item(file, current_file, true));
+                }
+            } else {
+                // Files in a folder
+                let folder_id = dir.replace('/', "_").replace('\\', "_");
                 html.push_str(&format!(
-                    r#"<div class="sidebar-folder">📁 {}</div>"#,
+                    r#"<div class="sidebar-folder" data-folder="{}">
+                        <div class="sidebar-folder-header" onclick="toggleFolder('{}')">
+                            {}
+                            <span class="sidebar-folder-name">{}</span>
+                        </div>
+                        <div class="sidebar-folder-items">"#,
+                    html_escape::encode_text(&folder_id),
+                    html_escape::encode_text(&folder_id),
+                    ICON_CHEVRON,
                     html_escape::encode_text(dir)
                 ));
-            }
 
-            for file in files {
-                let path = file.relative_path.to_string_lossy();
-                let is_current = current_file.map_or(false, |c| c == path);
-                let class = if is_current {
-                    "sidebar-item active"
-                } else {
-                    "sidebar-item"
-                };
+                for file in files {
+                    html.push_str(&self.render_file_item(file, current_file, false));
+                }
 
-                html.push_str(&format!(
-                    r#"<a href="javascript:void(0)" class="{}" data-path="{}" onclick="loadFile('{}')">{}</a>"#,
-                    class,
-                    html_escape::encode_text(&path),
-                    html_escape::encode_text(&path),
-                    html_escape::encode_text(&file.name)
-                ));
+                html.push_str("</div></div>");
             }
         }
 
         html
+    }
+
+    /// Render a single file item in the sidebar
+    fn render_file_item(
+        &self,
+        file: &crate::files::MarkdownFile,
+        current_file: Option<&str>,
+        is_root: bool,
+    ) -> String {
+        let path = file.relative_path.to_string_lossy();
+        let is_current = current_file.map_or(false, |c| c == path);
+
+        let mut classes = vec!["sidebar-item"];
+        if is_current {
+            classes.push("active");
+        }
+        if is_root {
+            classes.push("root-item");
+        }
+
+        format!(
+            r#"<a href="javascript:void(0)" class="{}" data-path="{}" onclick="loadFile('{}')">
+                {}
+                <span class="sidebar-item-name">{}</span>
+            </a>"#,
+            classes.join(" "),
+            html_escape::encode_text(&path),
+            html_escape::encode_text(&path),
+            ICON_FILE,
+            html_escape::encode_text(&file.name)
+        )
     }
 
     /// Convert markdown to HTML fragment
@@ -105,27 +143,42 @@ impl HtmlRenderer {
         let mut html_output = String::new();
         html::push_html(&mut html_output, parser);
 
-        // Convert relative .md links to use the viewer
-        self.process_md_links(&html_output)
+        // Process links
+        self.process_links(&html_output)
     }
 
-    /// Process markdown links to make .md files open in the viewer
-    fn process_md_links(&self, html: &str) -> String {
-        // Simple regex-like replacement for .md links
-        // Convert href="something.md" to onclick handler
+    /// Process links in HTML
+    /// - Convert .md links to use the viewer
+    /// - Add target="_blank" to external links
+    fn process_links(&self, html: &str) -> String {
         let mut result = html.to_string();
 
-        // Find and replace .md links
-        let link_pattern = regex::Regex::new(r#"href="([^"]+\.md)""#).ok();
+        // Pattern for all href links
+        let link_pattern = regex::Regex::new(r#"<a\s+href="([^"]+)"([^>]*)>"#).ok();
 
         if let Some(re) = link_pattern {
             result = re
                 .replace_all(&result, |caps: &regex::Captures| {
-                    let path = &caps[1];
-                    format!(
-                        r#"href="javascript:void(0)" onclick="loadFile('{}')""#,
-                        html_escape::encode_text(path)
-                    )
+                    let url = &caps[1];
+                    let rest = &caps[2];
+
+                    if url.starts_with("http://") || url.starts_with("https://") {
+                        // External link - open in new tab
+                        format!(
+                            r#"<a href="{}" target="_blank" rel="noopener noreferrer"{}>"#,
+                            url, rest
+                        )
+                    } else if url.ends_with(".md") {
+                        // Local .md file - use viewer
+                        format!(
+                            r#"<a href="javascript:void(0)" onclick="loadFile('{}')"{}>"#,
+                            html_escape::encode_text(url),
+                            rest
+                        )
+                    } else {
+                        // Other links - keep as is
+                        format!(r#"<a href="{}"{}>"#, url, rest)
+                    }
                 })
                 .to_string();
         }
@@ -149,5 +202,20 @@ mod tests {
         let result = renderer.render("# Hello\n\nWorld");
         assert!(result.contains("<h1>Hello</h1>"));
         assert!(result.contains("<p>World</p>"));
+    }
+
+    #[test]
+    fn test_external_links() {
+        let renderer = HtmlRenderer::new("Test");
+        let result = renderer.render("[Google](https://google.com)");
+        assert!(result.contains(r#"target="_blank""#));
+        assert!(result.contains(r#"rel="noopener noreferrer""#));
+    }
+
+    #[test]
+    fn test_md_links() {
+        let renderer = HtmlRenderer::new("Test");
+        let result = renderer.render("[Guide](./guide.md)");
+        assert!(result.contains(r#"onclick="loadFile"#));
     }
 }

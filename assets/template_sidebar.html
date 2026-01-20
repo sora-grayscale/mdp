@@ -8,6 +8,34 @@
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/github.min.css">
     <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
     <style>
+        :root {
+            --sidebar-width: 260px;
+            --sidebar-bg: #f6f8fa;
+            --sidebar-border: #d0d7de;
+            --sidebar-header-bg: #ffffff;
+            --text-primary: #24292f;
+            --text-secondary: #57606a;
+            --text-muted: #8b949e;
+            --accent-color: #0969da;
+            --accent-bg: #ddf4ff;
+            --hover-bg: #eaeef2;
+            --content-bg: #ffffff;
+            --transition-speed: 0.2s;
+        }
+        @media (prefers-color-scheme: dark) {
+            :root {
+                --sidebar-bg: #161b22;
+                --sidebar-border: #30363d;
+                --sidebar-header-bg: #0d1117;
+                --text-primary: #c9d1d9;
+                --text-secondary: #8b949e;
+                --text-muted: #6e7681;
+                --accent-color: #58a6ff;
+                --accent-bg: #388bfd26;
+                --hover-bg: #21262d;
+                --content-bg: #0d1117;
+            }
+        }
         * {
             box-sizing: border-box;
         }
@@ -16,127 +44,278 @@
             padding: 0;
             height: 100%;
             overflow: hidden;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Noto Sans', Helvetica, Arial, sans-serif;
         }
         .container {
             display: flex;
             height: 100vh;
         }
+
+        /* Sidebar Toggle Button */
+        .sidebar-toggle {
+            position: fixed;
+            top: 12px;
+            left: 12px;
+            z-index: 1000;
+            width: 36px;
+            height: 36px;
+            border: none;
+            border-radius: 8px;
+            background: var(--sidebar-bg);
+            border: 1px solid var(--sidebar-border);
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: all var(--transition-speed) ease;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+        }
+        .sidebar-toggle:hover {
+            background: var(--hover-bg);
+            box-shadow: 0 2px 6px rgba(0,0,0,0.15);
+        }
+        .sidebar-toggle svg {
+            width: 18px;
+            height: 18px;
+            fill: var(--text-secondary);
+            transition: transform var(--transition-speed) ease;
+        }
+        .sidebar-collapsed .sidebar-toggle {
+            left: 12px;
+        }
+        .sidebar-collapsed .sidebar-toggle svg {
+            transform: rotate(180deg);
+        }
+
+        /* Sidebar */
         .sidebar {
-            width: 250px;
+            width: var(--sidebar-width);
             min-width: 200px;
             max-width: 400px;
-            background: #f6f8fa;
-            border-right: 1px solid #d0d7de;
+            background: var(--sidebar-bg);
+            border-right: 1px solid var(--sidebar-border);
             overflow-y: auto;
-            padding: 16px 0;
+            overflow-x: hidden;
             flex-shrink: 0;
+            transition: width var(--transition-speed) ease,
+                        min-width var(--transition-speed) ease,
+                        opacity var(--transition-speed) ease;
+            display: flex;
+            flex-direction: column;
         }
+        .sidebar-collapsed .sidebar {
+            width: 0;
+            min-width: 0;
+            opacity: 0;
+            border-right: none;
+        }
+
+        /* Sidebar Header */
         .sidebar-header {
-            padding: 0 16px 12px;
+            padding: 16px;
+            padding-left: 56px;
             font-weight: 600;
             font-size: 14px;
-            color: #24292f;
-            border-bottom: 1px solid #d0d7de;
-            margin-bottom: 8px;
+            color: var(--text-primary);
+            background: var(--sidebar-header-bg);
+            border-bottom: 1px solid var(--sidebar-border);
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            position: sticky;
+            top: 0;
+            z-index: 10;
         }
+        .sidebar-header-icon {
+            font-size: 16px;
+        }
+
+        /* Sidebar Content */
+        .sidebar-content {
+            padding: 8px 0;
+            flex: 1;
+        }
+
+        /* Folder */
         .sidebar-folder {
-            padding: 6px 16px;
-            font-size: 12px;
-            color: #57606a;
-            font-weight: 500;
-            margin-top: 8px;
+            user-select: none;
         }
+        .sidebar-folder-header {
+            display: flex;
+            align-items: center;
+            padding: 8px 12px;
+            cursor: pointer;
+            color: var(--text-secondary);
+            font-size: 13px;
+            font-weight: 500;
+            border-radius: 6px;
+            margin: 2px 8px;
+            transition: background var(--transition-speed) ease;
+        }
+        .sidebar-folder-header:hover {
+            background: var(--hover-bg);
+        }
+        .sidebar-folder-icon {
+            width: 16px;
+            height: 16px;
+            margin-right: 6px;
+            transition: transform var(--transition-speed) ease;
+            fill: var(--text-muted);
+        }
+        .sidebar-folder.collapsed .sidebar-folder-icon {
+            transform: rotate(-90deg);
+        }
+        .sidebar-folder-name {
+            flex: 1;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+        .sidebar-folder-items {
+            overflow: hidden;
+            transition: max-height 0.3s ease;
+            max-height: 1000px;
+        }
+        .sidebar-folder.collapsed .sidebar-folder-items {
+            max-height: 0;
+        }
+
+        /* File Item */
         .sidebar-item {
-            display: block;
-            padding: 8px 16px 8px 24px;
-            color: #24292f;
+            display: flex;
+            align-items: center;
+            padding: 8px 12px 8px 32px;
+            color: var(--text-primary);
             text-decoration: none;
             font-size: 14px;
             cursor: pointer;
-            border-left: 3px solid transparent;
+            border-radius: 6px;
+            margin: 2px 8px;
+            transition: all var(--transition-speed) ease;
+            border-left: 2px solid transparent;
         }
         .sidebar-item:hover {
-            background: #eaeef2;
+            background: var(--hover-bg);
         }
         .sidebar-item.active {
-            background: #ddf4ff;
-            border-left-color: #0969da;
+            background: var(--accent-bg);
+            border-left-color: var(--accent-color);
+            color: var(--accent-color);
             font-weight: 500;
         }
-        .main-content {
-            flex: 1;
-            overflow-y: auto;
-            padding: 32px 48px;
-            max-width: 100%;
+        .sidebar-item-icon {
+            width: 16px;
+            height: 16px;
+            margin-right: 8px;
+            fill: var(--text-muted);
+            flex-shrink: 0;
         }
-        .markdown-body {
-            max-width: 980px;
-            margin: 0 auto;
+        .sidebar-item.active .sidebar-item-icon {
+            fill: var(--accent-color);
         }
-        .reload-indicator {
-            position: fixed;
-            top: 10px;
-            right: 10px;
-            padding: 8px 16px;
-            background: #28a745;
-            color: white;
-            border-radius: 4px;
-            font-size: 12px;
-            opacity: 0;
-            transition: opacity 0.3s;
-            z-index: 9999;
+        .sidebar-item-name {
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
         }
-        .reload-indicator.show {
-            opacity: 1;
+
+        /* Root level items (no folder) */
+        .sidebar-item.root-item {
+            padding-left: 12px;
         }
-        .reload-indicator.disconnected {
-            background: #dc3545;
-        }
+
         /* Resizer */
         .resizer {
             width: 4px;
             background: transparent;
             cursor: col-resize;
             flex-shrink: 0;
+            transition: background var(--transition-speed) ease;
         }
         .resizer:hover {
-            background: #0969da;
+            background: var(--accent-color);
         }
-        /* Dark mode support */
-        @media (prefers-color-scheme: dark) {
-            .sidebar {
-                background: #161b22;
-                border-right-color: #30363d;
-            }
-            .sidebar-header {
-                color: #c9d1d9;
-                border-bottom-color: #30363d;
-            }
-            .sidebar-folder {
-                color: #8b949e;
-            }
-            .sidebar-item {
-                color: #c9d1d9;
-            }
-            .sidebar-item:hover {
-                background: #21262d;
-            }
-            .sidebar-item.active {
-                background: #388bfd26;
-                border-left-color: #58a6ff;
-            }
-            .main-content {
-                background: #0d1117;
-            }
+        .sidebar-collapsed .resizer {
+            display: none;
+        }
+
+        /* Main Content */
+        .main-content {
+            flex: 1;
+            overflow-y: auto;
+            padding: 32px 48px;
+            padding-top: 60px;
+            background: var(--content-bg);
+            transition: padding-left var(--transition-speed) ease;
+        }
+        .sidebar-collapsed .main-content {
+            padding-left: 60px;
+        }
+        .markdown-body {
+            max-width: 980px;
+            margin: 0 auto;
+        }
+
+        /* Reload Indicator */
+        .reload-indicator {
+            position: fixed;
+            top: 12px;
+            right: 12px;
+            padding: 8px 16px;
+            background: #2ea043;
+            color: white;
+            border-radius: 8px;
+            font-size: 12px;
+            font-weight: 500;
+            opacity: 0;
+            transform: translateY(-10px);
+            transition: all 0.3s ease;
+            z-index: 9999;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.15);
+        }
+        .reload-indicator.show {
+            opacity: 1;
+            transform: translateY(0);
+        }
+        .reload-indicator.disconnected {
+            background: #cf222e;
+        }
+
+        /* Scrollbar styling */
+        .sidebar::-webkit-scrollbar {
+            width: 6px;
+        }
+        .sidebar::-webkit-scrollbar-track {
+            background: transparent;
+        }
+        .sidebar::-webkit-scrollbar-thumb {
+            background: var(--sidebar-border);
+            border-radius: 3px;
+        }
+        .sidebar::-webkit-scrollbar-thumb:hover {
+            background: var(--text-muted);
         }
     </style>
 </head>
 <body>
     <div id="reload-indicator" class="reload-indicator">Connected</div>
-    <div class="container">
-        <div class="sidebar">
-            <div class="sidebar-header">📂 {{TITLE}}</div>
-            {{SIDEBAR}}
+
+    <!-- Sidebar Toggle Button -->
+    <button class="sidebar-toggle" id="sidebarToggle" title="Toggle sidebar">
+        <svg viewBox="0 0 16 16">
+            <path d="M1 2.75A.75.75 0 0 1 1.75 2h12.5a.75.75 0 0 1 0 1.5H1.75A.75.75 0 0 1 1 2.75Zm0 5A.75.75 0 0 1 1.75 7h12.5a.75.75 0 0 1 0 1.5H1.75A.75.75 0 0 1 1 7.75ZM1.75 12h12.5a.75.75 0 0 1 0 1.5H1.75a.75.75 0 0 1 0-1.5Z"/>
+        </svg>
+    </button>
+
+    <div class="container" id="container">
+        <div class="sidebar" id="sidebar">
+            <div class="sidebar-header">
+                <span class="sidebar-header-icon">📂</span>
+                <span>{{TITLE}}</span>
+            </div>
+            <div class="sidebar-content">
+                {{SIDEBAR}}
+            </div>
         </div>
         <div class="resizer" id="resizer"></div>
         <div class="main-content">
@@ -145,11 +324,58 @@
             </div>
         </div>
     </div>
+
     <script>
         hljs.highlightAll();
 
-        // Current file path
+        // SVG Icons
+        const icons = {
+            file: '<svg class="sidebar-item-icon" viewBox="0 0 16 16"><path d="M2 1.75C2 .784 2.784 0 3.75 0h6.586c.464 0 .909.184 1.237.513l2.914 2.914c.329.328.513.773.513 1.237v9.586A1.75 1.75 0 0 1 13.25 16h-9.5A1.75 1.75 0 0 1 2 14.25Zm1.75-.25a.25.25 0 0 0-.25.25v12.5c0 .138.112.25.25.25h9.5a.25.25 0 0 0 .25-.25V6h-2.75A1.75 1.75 0 0 1 9 4.25V1.5Zm6.75.062V4.25c0 .138.112.25.25.25h2.688l-.011-.013-2.914-2.914-.013-.011Z"/></svg>',
+            chevron: '<svg class="sidebar-folder-icon" viewBox="0 0 16 16"><path d="M12.78 5.22a.749.749 0 0 1 0 1.06l-4.25 4.25a.749.749 0 0 1-1.06 0L3.22 6.28a.749.749 0 1 1 1.06-1.06L8 8.939l3.72-3.719a.749.749 0 0 1 1.06 0Z"/></svg>'
+        };
+
+        // State
         let currentFile = null;
+        let sidebarCollapsed = localStorage.getItem('sidebarCollapsed') === 'true';
+        let collapsedFolders = JSON.parse(localStorage.getItem('collapsedFolders') || '{}');
+
+        // Initialize
+        function init() {
+            // Apply saved sidebar state
+            if (sidebarCollapsed) {
+                document.getElementById('container').classList.add('sidebar-collapsed');
+            }
+
+            // Apply saved folder states
+            document.querySelectorAll('.sidebar-folder').forEach(folder => {
+                const folderId = folder.dataset.folder;
+                if (collapsedFolders[folderId]) {
+                    folder.classList.add('collapsed');
+                }
+            });
+
+            // Initialize current file from URL
+            const urlParams = new URLSearchParams(window.location.search);
+            currentFile = urlParams.get('file');
+        }
+
+        // Toggle sidebar
+        document.getElementById('sidebarToggle').addEventListener('click', () => {
+            const container = document.getElementById('container');
+            container.classList.toggle('sidebar-collapsed');
+            sidebarCollapsed = container.classList.contains('sidebar-collapsed');
+            localStorage.setItem('sidebarCollapsed', sidebarCollapsed);
+        });
+
+        // Toggle folder
+        function toggleFolder(folderId) {
+            const folder = document.querySelector(`[data-folder="${folderId}"]`);
+            if (folder) {
+                folder.classList.toggle('collapsed');
+                collapsedFolders[folderId] = folder.classList.contains('collapsed');
+                localStorage.setItem('collapsedFolders', JSON.stringify(collapsedFolders));
+            }
+        }
 
         // Load file via AJAX
         async function loadFile(path) {
@@ -164,6 +390,9 @@
                 document.querySelectorAll('.sidebar-item').forEach(item => {
                     item.classList.toggle('active', item.dataset.path === path);
                 });
+
+                // Expand parent folder if file is in a subfolder
+                expandParentFolder(path);
 
                 // Update URL without reload
                 const url = new URL(window.location);
@@ -180,6 +409,23 @@
             }
         }
 
+        // Expand the parent folder of a file path
+        function expandParentFolder(path) {
+            // Get the directory part of the path
+            const lastSlash = path.lastIndexOf('/');
+            if (lastSlash === -1) return; // Root level file, no folder to expand
+
+            const dir = path.substring(0, lastSlash);
+            const folderId = dir.replace(/\//g, '_').replace(/\\/g, '_');
+
+            const folder = document.querySelector(`[data-folder="${folderId}"]`);
+            if (folder && folder.classList.contains('collapsed')) {
+                folder.classList.remove('collapsed');
+                collapsedFolders[folderId] = false;
+                localStorage.setItem('collapsedFolders', JSON.stringify(collapsedFolders));
+            }
+        }
+
         // Handle browser back/forward
         window.addEventListener('popstate', (event) => {
             if (event.state && event.state.file) {
@@ -187,13 +433,9 @@
             }
         });
 
-        // Initialize current file from URL
-        const urlParams = new URLSearchParams(window.location.search);
-        currentFile = urlParams.get('file');
-
         // Resizer functionality
         const resizer = document.getElementById('resizer');
-        const sidebar = document.querySelector('.sidebar');
+        const sidebar = document.getElementById('sidebar');
         let isResizing = false;
 
         resizer.addEventListener('mousedown', (e) => {
@@ -205,16 +447,26 @@
         document.addEventListener('mousemove', (e) => {
             if (!isResizing) return;
             const newWidth = e.clientX;
-            if (newWidth >= 150 && newWidth <= 500) {
+            if (newWidth >= 200 && newWidth <= 500) {
                 sidebar.style.width = newWidth + 'px';
+                document.documentElement.style.setProperty('--sidebar-width', newWidth + 'px');
             }
         });
 
         document.addEventListener('mouseup', () => {
-            isResizing = false;
-            document.body.style.cursor = '';
-            document.body.style.userSelect = '';
+            if (isResizing) {
+                isResizing = false;
+                document.body.style.cursor = '';
+                document.body.style.userSelect = '';
+                localStorage.setItem('sidebarWidth', sidebar.style.width);
+            }
         });
+
+        // Restore sidebar width
+        const savedWidth = localStorage.getItem('sidebarWidth');
+        if (savedWidth) {
+            sidebar.style.width = savedWidth;
+        }
 
         // WebSocket for live reload
         (function() {
@@ -245,7 +497,6 @@
                 ws.onmessage = function(event) {
                     if (event.data === 'reload') {
                         showIndicator('Reloading...', false);
-                        // Reload current file content instead of full page reload
                         if (currentFile) {
                             loadFile(currentFile);
                         } else {
@@ -271,6 +522,9 @@
 
             connect();
         })();
+
+        // Initialize on load
+        init();
     </script>
 </body>
 </html>
