@@ -5,37 +5,24 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>{{TITLE}}</title>
     <link rel="stylesheet" href="/assets/github.css">
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/github.min.css">
+    <link id="hljs-theme" rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/github.min.css">
     <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
     <style>
         :root {
             --sidebar-width: 260px;
-            --sidebar-bg: #f6f8fa;
-            --sidebar-border: #d0d7de;
-            --sidebar-header-bg: #ffffff;
-            --text-primary: #24292f;
-            --text-secondary: #57606a;
-            --text-muted: #8b949e;
-            --accent-color: #0969da;
-            --accent-bg: #ddf4ff;
-            --hover-bg: #eaeef2;
-            --content-bg: #ffffff;
+            --sidebar-bg: var(--color-canvas-subtle, #f6f8fa);
+            --sidebar-border: var(--color-border-default, #d0d7de);
+            --sidebar-header-bg: var(--color-canvas-default, #ffffff);
+            --text-primary: var(--color-fg-default, #24292f);
+            --text-secondary: var(--color-fg-muted, #57606a);
+            --text-muted: var(--color-fg-subtle, #8b949e);
+            --accent-color: var(--color-accent-fg, #0969da);
+            --accent-bg: var(--color-accent-subtle, #ddf4ff);
+            --hover-bg: var(--color-canvas-inset, #eaeef2);
+            --content-bg: var(--color-canvas-default, #ffffff);
             --transition-speed: 0.2s;
         }
-        @media (prefers-color-scheme: dark) {
-            :root {
-                --sidebar-bg: #161b22;
-                --sidebar-border: #30363d;
-                --sidebar-header-bg: #0d1117;
-                --text-primary: #c9d1d9;
-                --text-secondary: #8b949e;
-                --text-muted: #6e7681;
-                --accent-color: #58a6ff;
-                --accent-bg: #388bfd26;
-                --hover-bg: #21262d;
-                --content-bg: #0d1117;
-            }
-        }
+
         * {
             box-sizing: border-box;
         }
@@ -44,7 +31,10 @@
             padding: 0;
             height: 100%;
             overflow: hidden;
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Noto Sans', Helvetica, Arial, sans-serif;
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Noto Sans', Helvetica, Arial, sans-serif;
+            background: var(--content-bg);
+            color: var(--text-primary);
+            transition: background-color 0.3s ease, color 0.3s ease;
         }
         .container {
             display: flex;
@@ -85,6 +75,52 @@
         }
         .sidebar-collapsed .sidebar-toggle svg {
             transform: rotate(180deg);
+        }
+
+        /* Theme Toggle Button */
+        .theme-toggle {
+            position: fixed;
+            top: 12px;
+            right: 12px;
+            z-index: 1000;
+            width: 36px;
+            height: 36px;
+            border: none;
+            border-radius: 50%;
+            background: var(--sidebar-bg);
+            border: 1px solid var(--sidebar-border);
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: all 0.3s ease;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+        }
+        .theme-toggle:hover {
+            transform: scale(1.1);
+            box-shadow: 0 2px 8px rgba(0,0,0,0.15);
+        }
+        .theme-toggle svg {
+            width: 18px;
+            height: 18px;
+            stroke: var(--text-secondary);
+            fill: none;
+            transition: stroke 0.3s ease;
+        }
+        .theme-toggle:hover svg {
+            stroke: var(--accent-color);
+        }
+        .theme-toggle .icon-sun {
+            display: none;
+        }
+        .theme-toggle .icon-moon {
+            display: block;
+        }
+        [data-theme="dark"] .theme-toggle .icon-sun {
+            display: block;
+        }
+        [data-theme="dark"] .theme-toggle .icon-moon {
+            display: none;
         }
 
         /* Sidebar */
@@ -246,23 +282,25 @@
             padding: 32px 48px;
             padding-top: 60px;
             background: var(--content-bg);
-            transition: padding-left var(--transition-speed) ease;
+            transition: padding var(--transition-speed) ease;
+            display: flex;
+            justify-content: center;
         }
         .sidebar-collapsed .main-content {
-            padding-left: 60px;
+            padding-left: 48px;
         }
         .markdown-body {
             max-width: 980px;
-            margin: 0 auto;
+            width: 100%;
         }
 
         /* Reload Indicator */
         .reload-indicator {
             position: fixed;
             top: 12px;
-            right: 12px;
+            right: 60px;
             padding: 8px 16px;
-            background: #2ea043;
+            background: var(--color-success-fg, #2ea043);
             color: white;
             border-radius: 8px;
             font-size: 12px;
@@ -278,7 +316,7 @@
             transform: translateY(0);
         }
         .reload-indicator.disconnected {
-            background: #cf222e;
+            background: var(--color-danger-fg, #cf222e);
         }
 
         /* Scrollbar styling */
@@ -307,6 +345,24 @@
         </svg>
     </button>
 
+    <!-- Theme Toggle Button -->
+    <button class="theme-toggle" id="themeToggle" title="Toggle theme">
+        <svg class="icon-moon" viewBox="0 0 24 24" stroke-width="2">
+            <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path>
+        </svg>
+        <svg class="icon-sun" viewBox="0 0 24 24" stroke-width="2">
+            <circle cx="12" cy="12" r="5"></circle>
+            <line x1="12" y1="1" x2="12" y2="3"></line>
+            <line x1="12" y1="21" x2="12" y2="23"></line>
+            <line x1="4.22" y1="4.22" x2="5.64" y2="5.64"></line>
+            <line x1="18.36" y1="18.36" x2="19.78" y2="19.78"></line>
+            <line x1="1" y1="12" x2="3" y2="12"></line>
+            <line x1="21" y1="12" x2="23" y2="12"></line>
+            <line x1="4.22" y1="19.78" x2="5.64" y2="18.36"></line>
+            <line x1="18.36" y1="5.64" x2="19.78" y2="4.22"></line>
+        </svg>
+    </button>
+
     <div class="container" id="container">
         <div class="sidebar" id="sidebar">
             <div class="sidebar-header">
@@ -326,6 +382,46 @@
     </div>
 
     <script>
+        // Theme Management
+        (function() {
+            const themeToggle = document.getElementById('themeToggle');
+            const hljsTheme = document.getElementById('hljs-theme');
+
+            const HLJS_LIGHT = 'https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/github.min.css';
+            const HLJS_DARK = 'https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/github-dark.min.css';
+
+            // Get current theme
+            function getCurrentTheme() {
+                const saved = localStorage.getItem('theme');
+                if (saved) return saved;
+                return window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+            }
+
+            // Apply theme
+            function applyTheme(theme) {
+                document.documentElement.setAttribute('data-theme', theme);
+                hljsTheme.href = theme === 'dark' ? HLJS_DARK : HLJS_LIGHT;
+                localStorage.setItem('theme', theme);
+            }
+
+            // Initialize theme
+            applyTheme(getCurrentTheme());
+
+            // Toggle theme
+            themeToggle.addEventListener('click', () => {
+                const current = getCurrentTheme();
+                const next = current === 'dark' ? 'light' : 'dark';
+                applyTheme(next);
+            });
+
+            // Listen for system theme changes
+            window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', (e) => {
+                if (!localStorage.getItem('theme')) {
+                    applyTheme(e.matches ? 'dark' : 'light');
+                }
+            });
+        })();
+
         hljs.highlightAll();
 
         // SVG Icons

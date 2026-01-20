@@ -5,36 +5,99 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>{{TITLE}}</title>
     <link rel="stylesheet" href="/assets/github.css">
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/github.min.css">
+    <link id="hljs-theme" rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/github.min.css">
     <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
     <style>
         .reload-indicator {
             position: fixed;
-            top: 10px;
-            right: 10px;
+            top: 12px;
+            right: 64px;
             padding: 8px 16px;
-            background: #28a745;
+            background: var(--color-success-fg, #2ea043);
             color: white;
-            border-radius: 4px;
+            border-radius: 8px;
             font-size: 12px;
+            font-weight: 500;
             opacity: 0;
-            transition: opacity 0.3s;
+            transform: translateY(-10px);
+            transition: all 0.3s ease;
             z-index: 9999;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.15);
         }
         .reload-indicator.show {
             opacity: 1;
+            transform: translateY(0);
         }
         .reload-indicator.disconnected {
-            background: #dc3545;
+            background: var(--color-danger-fg, #cf222e);
         }
     </style>
 </head>
 <body>
     <div id="reload-indicator" class="reload-indicator">Connected</div>
+
+    <!-- Theme Toggle Button -->
+    <button class="theme-toggle" id="themeToggle" title="Toggle theme">
+        <svg class="icon-moon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path>
+        </svg>
+        <svg class="icon-sun" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <circle cx="12" cy="12" r="5"></circle>
+            <line x1="12" y1="1" x2="12" y2="3"></line>
+            <line x1="12" y1="21" x2="12" y2="23"></line>
+            <line x1="4.22" y1="4.22" x2="5.64" y2="5.64"></line>
+            <line x1="18.36" y1="18.36" x2="19.78" y2="19.78"></line>
+            <line x1="1" y1="12" x2="3" y2="12"></line>
+            <line x1="21" y1="12" x2="23" y2="12"></line>
+            <line x1="4.22" y1="19.78" x2="5.64" y2="18.36"></line>
+            <line x1="18.36" y1="5.64" x2="19.78" y2="4.22"></line>
+        </svg>
+    </button>
+
     <div class="markdown-body">
         {{CONTENT}}
     </div>
     <script>
+        // Theme Management
+        (function() {
+            const themeToggle = document.getElementById('themeToggle');
+            const hljsTheme = document.getElementById('hljs-theme');
+
+            const HLJS_LIGHT = 'https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/github.min.css';
+            const HLJS_DARK = 'https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/github-dark.min.css';
+
+            // Get current theme
+            function getCurrentTheme() {
+                const saved = localStorage.getItem('theme');
+                if (saved) return saved;
+                return window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+            }
+
+            // Apply theme
+            function applyTheme(theme) {
+                document.documentElement.setAttribute('data-theme', theme);
+                hljsTheme.href = theme === 'dark' ? HLJS_DARK : HLJS_LIGHT;
+                localStorage.setItem('theme', theme);
+            }
+
+            // Initialize theme
+            applyTheme(getCurrentTheme());
+
+            // Toggle theme
+            themeToggle.addEventListener('click', () => {
+                const current = getCurrentTheme();
+                const next = current === 'dark' ? 'light' : 'dark';
+                applyTheme(next);
+            });
+
+            // Listen for system theme changes
+            window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', (e) => {
+                if (!localStorage.getItem('theme')) {
+                    applyTheme(e.matches ? 'dark' : 'light');
+                }
+            });
+        })();
+
         hljs.highlightAll();
 
         // WebSocket for live reload
