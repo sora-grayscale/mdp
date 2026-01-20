@@ -1,10 +1,16 @@
 [package]
 name = "mdp"
 version = "0.1.0"
-edition = "2021"
+edition = "2024"
+rust-version = "1.85"
 description = "A rich Markdown previewer for the terminal and browser"
-authors = ["Your Name"]
+authors = ["sora-grayscale"]
 license = "MIT"
+repository = "https://github.com/sora-grayscale/mdp"
+homepage = "https://github.com/sora-grayscale/mdp"
+readme = "README.md"
+keywords = ["markdown", "preview", "terminal", "browser", "cli"]
+categories = ["command-line-utilities", "text-processing"]
 
 [dependencies]
 # CLI
@@ -18,7 +24,6 @@ syntect = "5"
 
 # Terminal
 crossterm = "0.27"
-textwrap = "0.16"
 
 # Unicode width for proper alignment
 unicode-width = "0.1"

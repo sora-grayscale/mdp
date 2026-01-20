@@ -1,5 +1,5 @@
 use notify::RecursiveMode;
-use notify_debouncer_mini::{new_debouncer, DebouncedEventKind};
+use notify_debouncer_mini::{DebouncedEventKind, new_debouncer};
 use std::path::Path;
 use std::sync::mpsc::channel;
 use std::time::Duration;
@@ -136,12 +136,10 @@ pub async fn watch_directory_async<P: AsRef<Path>>(
                 Ok(Ok(events)) => {
                     // Filter for markdown files only
                     let md_changed = events.iter().any(|e| {
-                        if e.kind == DebouncedEventKind::Any {
-                            if let Some(ext) = e.path.extension() {
-                                return ext == "md" || ext == "markdown";
-                            }
-                        }
-                        false
+                        e.kind == DebouncedEventKind::Any
+                            && e.path
+                                .extension()
+                                .is_some_and(|ext| ext == "md" || ext == "markdown")
                     });
 
                     if md_changed {
