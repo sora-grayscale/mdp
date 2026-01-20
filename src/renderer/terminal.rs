@@ -37,8 +37,26 @@ impl TerminalRenderer {
     }
 
     pub fn render_to_writer<W: Write>(&self, out: &mut W, document: &Document) -> io::Result<()> {
+        // Separate footnote definitions from other elements
+        let mut footnotes = Vec::new();
+
         for element in &document.elements {
-            self.render_element(out, element, 0)?;
+            if let Element::FootnoteDefinition { .. } = element {
+                footnotes.push(element);
+            } else {
+                self.render_element(out, element, 0)?;
+            }
+        }
+
+        // Render footnotes at the end with a separator
+        if !footnotes.is_empty() {
+            execute!(out, SetForegroundColor(Color::DarkGrey))?;
+            writeln!(out, "{}", "─".repeat(self.term_width.min(40)))?;
+            execute!(out, ResetColor)?;
+
+            for footnote in footnotes {
+                self.render_element(out, footnote, 0)?;
+            }
         }
 
         Ok(())
@@ -82,6 +100,9 @@ impl TerminalRenderer {
             }
             Element::Image { url, alt, .. } => {
                 self.render_image(out, url, alt)?;
+            }
+            Element::FootnoteDefinition { label, content } => {
+                self.render_footnote_definition(out, label, content)?;
             }
         }
         Ok(())
@@ -181,6 +202,11 @@ impl TerminalRenderer {
                 execute!(out, ResetColor, SetAttribute(Attribute::Reset))?;
                 execute!(out, SetForegroundColor(Color::DarkGrey))?;
                 write!(out, " ({})", url)?;
+                execute!(out, ResetColor)?;
+            }
+            InlineElement::FootnoteReference(label) => {
+                execute!(out, SetForegroundColor(Color::Cyan))?;
+                write!(out, "[^{}]", label)?;
                 execute!(out, ResetColor)?;
             }
             InlineElement::SoftBreak | InlineElement::HardBreak => {
@@ -486,6 +512,40 @@ impl TerminalRenderer {
         writeln!(out, " ({})", url)?;
         execute!(out, ResetColor)?;
         writeln!(out)?;
+        Ok(())
+    }
+
+    fn render_footnote_definition<W: Write>(
+        &self,
+        out: &mut W,
+        label: &str,
+        content: &[Element],
+    ) -> io::Result<()> {
+        // Render footnote label
+        execute!(out, SetForegroundColor(Color::Cyan))?;
+        write!(out, "[^{}]: ", label)?;
+        execute!(out, ResetColor)?;
+
+        // Render footnote content inline if it's a single paragraph
+        if content.len() == 1 {
+            if let Element::Paragraph {
+                content: inline_content,
+            } = &content[0]
+            {
+                for inline in inline_content {
+                    self.render_inline(out, inline)?;
+                }
+                writeln!(out)?;
+                writeln!(out)?;
+                return Ok(());
+            }
+        }
+
+        // Otherwise render each element with indent
+        writeln!(out)?;
+        for element in content {
+            self.render_element(out, element, 4)?;
+        }
         Ok(())
     }
 }

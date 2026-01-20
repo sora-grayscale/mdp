@@ -39,6 +39,10 @@ pub enum Element {
         alt: String,
         title: Option<String>,
     },
+    FootnoteDefinition {
+        label: String,
+        content: Vec<Element>,
+    },
 }
 
 #[derive(Debug, Clone)]
@@ -59,6 +63,7 @@ pub enum InlineElement {
         text: String,
         title: Option<String>,
     },
+    FootnoteReference(String),
     SoftBreak,
     HardBreak,
 }
@@ -99,6 +104,7 @@ pub fn parse_markdown(input: &str) -> Document {
     options.insert(Options::ENABLE_TABLES);
     options.insert(Options::ENABLE_STRIKETHROUGH);
     options.insert(Options::ENABLE_TASKLISTS);
+    options.insert(Options::ENABLE_FOOTNOTES);
 
     let parser = Parser::new_ext(input, options);
     let events: Vec<Event> = parser.collect();
@@ -221,6 +227,9 @@ fn parse_element(events: &[Event], start: usize) -> (Option<Element>, usize) {
                             index += 1;
                         }
                         inline_elements.push(InlineElement::Link { url, text, title });
+                    }
+                    Event::FootnoteReference(label) => {
+                        inline_elements.push(InlineElement::FootnoteReference(label.to_string()));
                     }
                     Event::SoftBreak => {
                         inline_elements.push(InlineElement::SoftBreak);
@@ -494,6 +503,84 @@ fn parse_element(events: &[Event], start: usize) -> (Option<Element>, usize) {
             (Some(Element::Image { url, alt, title }), index + 1)
         }
 
+        Event::Start(Tag::FootnoteDefinition(label)) => {
+            let label = label.to_string();
+            let mut content = Vec::new();
+            let mut index = start + 1;
+
+            while index < events.len() {
+                match &events[index] {
+                    Event::End(TagEnd::FootnoteDefinition) => {
+                        break;
+                    }
+                    _ => {
+                        let (element, new_index) = parse_element(events, index);
+                        if let Some(el) = element {
+                            content.push(el);
+                        }
+                        index = new_index - 1;
+                    }
+                }
+                index += 1;
+            }
+
+            (
+                Some(Element::FootnoteDefinition { label, content }),
+                index + 1,
+            )
+        }
+
         _ => (None, start + 1),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_footnote_reference() {
+        let input = "This has a footnote[^1].\n\n[^1]: The footnote content.";
+        let doc = parse_markdown(input);
+
+        // Should have a paragraph with footnote reference and a footnote definition
+        assert!(doc.elements.len() >= 2);
+
+        // Check the paragraph contains a footnote reference
+        if let Element::Paragraph { content } = &doc.elements[0] {
+            let has_footnote_ref = content
+                .iter()
+                .any(|el| matches!(el, InlineElement::FootnoteReference(label) if label == "1"));
+            assert!(has_footnote_ref, "Should have footnote reference");
+        } else {
+            panic!("First element should be a paragraph");
+        }
+
+        // Check footnote definition exists
+        let has_footnote_def = doc
+            .elements
+            .iter()
+            .any(|el| matches!(el, Element::FootnoteDefinition { label, .. } if label == "1"));
+        assert!(has_footnote_def, "Should have footnote definition");
+    }
+
+    #[test]
+    fn test_footnote_definition_content() {
+        let input = "[^note]: This is the **footnote** content.";
+        let doc = parse_markdown(input);
+
+        // Find the footnote definition
+        let footnote = doc.elements.iter().find_map(|el| {
+            if let Element::FootnoteDefinition { label, content } = el {
+                if label == "note" {
+                    return Some(content);
+                }
+            }
+            None
+        });
+
+        assert!(footnote.is_some(), "Should have footnote definition");
+        let content = footnote.unwrap();
+        assert!(!content.is_empty(), "Footnote should have content");
     }
 }
