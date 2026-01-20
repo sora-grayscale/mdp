@@ -1,13 +1,13 @@
-use crossterm::style::{Attribute, Color, SetAttribute, SetForegroundColor, ResetColor};
 use crossterm::execute;
+use crossterm::style::{Attribute, Color, ResetColor, SetAttribute, SetForegroundColor};
 use std::io::{self, Write};
 use syntect::easy::HighlightLines;
-use syntect::highlighting::{ThemeSet, Style};
+use syntect::highlighting::{Style, ThemeSet};
 use syntect::parsing::SyntaxSet;
 use syntect::util::as_24_bit_terminal_escaped;
 use unicode_width::UnicodeWidthStr;
 
-use crate::parser::{Document, Element, InlineElement, Alignment, ListItem};
+use crate::parser::{Alignment, Document, Element, InlineElement, ListItem};
 
 pub struct TerminalRenderer {
     theme: String,
@@ -44,7 +44,12 @@ impl TerminalRenderer {
         Ok(())
     }
 
-    fn render_element<W: Write>(&self, out: &mut W, element: &Element, indent: usize) -> io::Result<()> {
+    fn render_element<W: Write>(
+        &self,
+        out: &mut W,
+        element: &Element,
+        indent: usize,
+    ) -> io::Result<()> {
         match element {
             Element::Heading { level, content } => {
                 self.render_heading(out, *level, content)?;
@@ -55,10 +60,18 @@ impl TerminalRenderer {
             Element::CodeBlock { language, content } => {
                 self.render_code_block(out, language.as_deref(), content)?;
             }
-            Element::List { ordered, start, items } => {
+            Element::List {
+                ordered,
+                start,
+                items,
+            } => {
                 self.render_list(out, *ordered, *start, items, indent)?;
             }
-            Element::Table { headers, alignments, rows } => {
+            Element::Table {
+                headers,
+                alignments,
+                rows,
+            } => {
                 self.render_table(out, headers, alignments, rows)?;
             }
             Element::BlockQuote { content } => {
@@ -85,7 +98,11 @@ impl TerminalRenderer {
         };
 
         writeln!(out)?;
-        execute!(out, SetForegroundColor(color), SetAttribute(Attribute::Bold))?;
+        execute!(
+            out,
+            SetForegroundColor(color),
+            SetAttribute(Attribute::Bold)
+        )?;
         write!(out, "{}", prefix)?;
 
         // Underline for h1 and h2
@@ -99,7 +116,11 @@ impl TerminalRenderer {
         // Add decorative line for h1
         if level == 1 {
             execute!(out, SetForegroundColor(Color::DarkGrey))?;
-            writeln!(out, "{}", "─".repeat(self.term_width.min(content.width() + 4)))?;
+            writeln!(
+                out,
+                "{}",
+                "─".repeat(self.term_width.min(content.width() + 4))
+            )?;
             execute!(out, ResetColor)?;
         }
 
@@ -107,7 +128,12 @@ impl TerminalRenderer {
         Ok(())
     }
 
-    fn render_paragraph<W: Write>(&self, out: &mut W, content: &[InlineElement], indent: usize) -> io::Result<()> {
+    fn render_paragraph<W: Write>(
+        &self,
+        out: &mut W,
+        content: &[InlineElement],
+        indent: usize,
+    ) -> io::Result<()> {
         let indent_str = " ".repeat(indent);
         write!(out, "{}", indent_str)?;
 
@@ -146,7 +172,11 @@ impl TerminalRenderer {
                 execute!(out, SetAttribute(Attribute::Reset))?;
             }
             InlineElement::Link { url, text, .. } => {
-                execute!(out, SetForegroundColor(Color::Blue), SetAttribute(Attribute::Underlined))?;
+                execute!(
+                    out,
+                    SetForegroundColor(Color::Blue),
+                    SetAttribute(Attribute::Underlined)
+                )?;
                 write!(out, "{}", text)?;
                 execute!(out, ResetColor, SetAttribute(Attribute::Reset))?;
                 execute!(out, SetForegroundColor(Color::DarkGrey))?;
@@ -160,7 +190,12 @@ impl TerminalRenderer {
         Ok(())
     }
 
-    fn render_code_block<W: Write>(&self, out: &mut W, language: Option<&str>, content: &str) -> io::Result<()> {
+    fn render_code_block<W: Write>(
+        &self,
+        out: &mut W,
+        language: Option<&str>,
+        content: &str,
+    ) -> io::Result<()> {
         let syntax_theme = if self.theme == "light" {
             "base16-ocean.light"
         } else {
@@ -214,7 +249,14 @@ impl TerminalRenderer {
         Ok(())
     }
 
-    fn render_list<W: Write>(&self, out: &mut W, ordered: bool, start: Option<u64>, items: &[ListItem], indent: usize) -> io::Result<()> {
+    fn render_list<W: Write>(
+        &self,
+        out: &mut W,
+        ordered: bool,
+        start: Option<u64>,
+        items: &[ListItem],
+        indent: usize,
+    ) -> io::Result<()> {
         let indent_str = " ".repeat(indent);
         let mut number = start.unwrap_or(1);
 
@@ -253,9 +295,17 @@ impl TerminalRenderer {
         Ok(())
     }
 
-    fn render_table<W: Write>(&self, out: &mut W, headers: &[String], alignments: &[Alignment], rows: &[Vec<String>]) -> io::Result<()> {
+    fn render_table<W: Write>(
+        &self,
+        out: &mut W,
+        headers: &[String],
+        alignments: &[Alignment],
+        rows: &[Vec<String>],
+    ) -> io::Result<()> {
         // Determine number of columns
-        let num_cols = headers.len().max(rows.first().map(|r| r.len()).unwrap_or(0));
+        let num_cols = headers
+            .len()
+            .max(rows.first().map(|r| r.len()).unwrap_or(0));
         if num_cols == 0 {
             return Ok(());
         }
@@ -295,7 +345,11 @@ impl TerminalRenderer {
         for (i, header) in headers.iter().enumerate() {
             let width = col_widths.get(i).copied().unwrap_or(10);
             let align = alignments.get(i).copied().unwrap_or(Alignment::Left);
-            execute!(out, SetForegroundColor(Color::Cyan), SetAttribute(Attribute::Bold))?;
+            execute!(
+                out,
+                SetForegroundColor(Color::Cyan),
+                SetAttribute(Attribute::Bold)
+            )?;
             write!(out, "{}", self.align_text(header, width, align))?;
             execute!(out, ResetColor, SetAttribute(Attribute::Reset))?;
             execute!(out, SetForegroundColor(Color::DarkGrey))?;
@@ -368,7 +422,11 @@ impl TerminalRenderer {
                     // First line
                     execute!(out, SetForegroundColor(Color::DarkGrey))?;
                     write!(out, "  ▌ ")?;
-                    execute!(out, SetForegroundColor(Color::White), SetAttribute(Attribute::Italic))?;
+                    execute!(
+                        out,
+                        SetForegroundColor(Color::White),
+                        SetAttribute(Attribute::Italic)
+                    )?;
 
                     for inline in content {
                         match inline {
@@ -377,7 +435,11 @@ impl TerminalRenderer {
                                 execute!(out, ResetColor, SetAttribute(Attribute::Reset))?;
                                 execute!(out, SetForegroundColor(Color::DarkGrey))?;
                                 write!(out, "  ▌ ")?;
-                                execute!(out, SetForegroundColor(Color::White), SetAttribute(Attribute::Italic))?;
+                                execute!(
+                                    out,
+                                    SetForegroundColor(Color::White),
+                                    SetAttribute(Attribute::Italic)
+                                )?;
                             }
                             _ => {
                                 self.render_inline(out, inline)?;
@@ -413,7 +475,11 @@ impl TerminalRenderer {
         // TODO: Phase 5 - iTerm2/Kitty image protocol support
         execute!(out, SetForegroundColor(Color::Magenta))?;
         write!(out, "🖼  ")?;
-        execute!(out, SetForegroundColor(Color::Blue), SetAttribute(Attribute::Underlined))?;
+        execute!(
+            out,
+            SetForegroundColor(Color::Blue),
+            SetAttribute(Attribute::Underlined)
+        )?;
         write!(out, "{}", if alt.is_empty() { "Image" } else { alt })?;
         execute!(out, ResetColor, SetAttribute(Attribute::Reset))?;
         execute!(out, SetForegroundColor(Color::DarkGrey))?;

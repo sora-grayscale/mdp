@@ -111,9 +111,9 @@ impl FileTree {
 
     /// Find a file by its relative path
     pub fn find_file(&self, relative_path: &str) -> Option<&MarkdownFile> {
-        self.files.iter().find(|f| {
-            f.relative_path.to_string_lossy() == relative_path
-        })
+        self.files
+            .iter()
+            .find(|f| f.relative_path.to_string_lossy() == relative_path)
     }
 
     /// Check if this is a single file (not directory mode)

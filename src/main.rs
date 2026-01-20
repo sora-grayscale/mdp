@@ -13,7 +13,11 @@ use mdp::watcher::watch_file;
 
 #[derive(Parser, Debug)]
 #[command(name = "mdp")]
-#[command(author, version, about = "A rich Markdown previewer for the terminal and browser")]
+#[command(
+    author,
+    version,
+    about = "A rich Markdown previewer for the terminal and browser"
+)]
 struct Args {
     /// Markdown file or directory to preview
     #[arg(required = true)]
@@ -58,7 +62,10 @@ fn main() {
         match FileTree::from_directory(&args.path) {
             Ok(tree) => {
                 if tree.files.is_empty() {
-                    eprintln!("Error: No markdown files found in '{}'", args.path.display());
+                    eprintln!(
+                        "Error: No markdown files found in '{}'",
+                        args.path.display()
+                    );
                     process::exit(1);
                 }
                 tree
@@ -73,11 +80,17 @@ fn main() {
         // Warn if file is not .md
         if let Some(ext) = args.path.extension() {
             if ext != "md" && ext != "markdown" {
-                eprintln!("Warning: '{}' is not a markdown file (.md)", args.path.display());
+                eprintln!(
+                    "Warning: '{}' is not a markdown file (.md)",
+                    args.path.display()
+                );
                 eprintln!("         Proceeding anyway...\n");
             }
         } else {
-            eprintln!("Warning: '{}' has no extension, treating as markdown\n", args.path.display());
+            eprintln!(
+                "Warning: '{}' has no extension, treating as markdown\n",
+                args.path.display()
+            );
         }
 
         match FileTree::from_file(&args.path) {
@@ -126,7 +139,11 @@ fn main() {
             }
         } else {
             // Directory mode in terminal - list files
-            println!("Found {} markdown files in '{}':\n", file_tree.files.len(), args.path.display());
+            println!(
+                "Found {} markdown files in '{}':\n",
+                file_tree.files.len(),
+                args.path.display()
+            );
             for (i, file) in file_tree.files.iter().enumerate() {
                 println!("  {}. {}", i + 1, file.relative_path.display());
             }
@@ -152,11 +169,9 @@ fn run_terminal_mode(file_path: &PathBuf, theme: &str, no_pager: bool) {
             eprintln!("Error: Failed to render: {}", e);
             process::exit(1);
         }
-    } else {
-        if let Err(e) = render_with_pager(&renderer, &document) {
-            eprintln!("Error: Failed to render: {}", e);
-            process::exit(1);
-        }
+    } else if let Err(e) = render_with_pager(&renderer, &document) {
+        eprintln!("Error: Failed to render: {}", e);
+        process::exit(1);
     }
 }
 
@@ -183,19 +198,14 @@ fn run_terminal_watch_mode(file_path: &PathBuf, theme: &str, _no_pager: bool) {
     println!("\n--- Watching for changes (Press Ctrl+C to exit) ---\n");
 
     // Wait for changes and re-render
-    loop {
-        match rx.blocking_recv() {
-            Ok(_) => {
-                // Clear screen and re-render
-                let mut stdout = io::stdout();
-                let _ = stdout.execute(terminal::Clear(ClearType::All));
-                let _ = stdout.execute(cursor::MoveTo(0, 0));
+    while rx.blocking_recv().is_ok() {
+        // Clear screen and re-render
+        let mut stdout = io::stdout();
+        let _ = stdout.execute(terminal::Clear(ClearType::All));
+        let _ = stdout.execute(cursor::MoveTo(0, 0));
 
-                render_terminal_content(file_path, theme);
-                println!("\n--- Watching for changes (Press Ctrl+C to exit) ---\n");
-            }
-            Err(_) => break,
-        }
+        render_terminal_content(file_path, theme);
+        println!("\n--- Watching for changes (Press Ctrl+C to exit) ---\n");
     }
 }
 
