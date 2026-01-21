@@ -7,7 +7,9 @@ use syntect::parsing::SyntaxSet;
 use syntect::util::as_24_bit_terminal_escaped;
 use unicode_width::UnicodeWidthStr;
 
-use crate::parser::{Alignment, Document, Element, InlineElement, ListItem};
+use crate::parser::{
+    Alignment, Document, Element, InlineElement, ListItem, TocEntry, generate_toc,
+};
 
 pub struct TerminalRenderer {
     theme: String,
@@ -32,11 +34,24 @@ impl TerminalRenderer {
         }
     }
 
-    pub fn render(&self, document: &Document) -> io::Result<()> {
-        self.render_to_writer(&mut io::stdout(), document)
+    pub fn render(&self, document: &Document, show_toc: bool) -> io::Result<()> {
+        self.render_to_writer(&mut io::stdout(), document, show_toc)
     }
 
-    pub fn render_to_writer<W: Write>(&self, out: &mut W, document: &Document) -> io::Result<()> {
+    pub fn render_to_writer<W: Write>(
+        &self,
+        out: &mut W,
+        document: &Document,
+        show_toc: bool,
+    ) -> io::Result<()> {
+        // Render TOC if requested
+        if show_toc {
+            let toc = generate_toc(document);
+            if !toc.is_empty() {
+                self.render_toc(out, &toc)?;
+            }
+        }
+
         // Separate footnote definitions from other elements
         let mut footnotes = Vec::new();
 
@@ -58,6 +73,47 @@ impl TerminalRenderer {
                 self.render_element(out, footnote, 0)?;
             }
         }
+
+        Ok(())
+    }
+
+    fn render_toc<W: Write>(&self, out: &mut W, toc: &[TocEntry]) -> io::Result<()> {
+        // TOC header
+        writeln!(out)?;
+        execute!(
+            out,
+            SetForegroundColor(Color::Cyan),
+            SetAttribute(Attribute::Bold)
+        )?;
+        writeln!(out, "📑 Table of Contents")?;
+        execute!(out, ResetColor, SetAttribute(Attribute::Reset))?;
+        execute!(out, SetForegroundColor(Color::DarkGrey))?;
+        writeln!(out, "{}", "─".repeat(self.term_width.min(30)))?;
+        execute!(out, ResetColor)?;
+
+        // Find minimum level for proper indentation
+        let min_level = toc.iter().map(|e| e.level).min().unwrap_or(1);
+
+        for entry in toc {
+            let indent = "  ".repeat((entry.level - min_level) as usize);
+            let bullet = match entry.level {
+                1 => "●",
+                2 => "○",
+                3 => "◆",
+                _ => "◇",
+            };
+
+            execute!(out, SetForegroundColor(Color::Cyan))?;
+            write!(out, "{}{} ", indent, bullet)?;
+            execute!(out, ResetColor)?;
+            writeln!(out, "{}", entry.text)?;
+        }
+
+        writeln!(out)?;
+        execute!(out, SetForegroundColor(Color::DarkGrey))?;
+        writeln!(out, "{}", "━".repeat(self.term_width.min(50)))?;
+        execute!(out, ResetColor)?;
+        writeln!(out)?;
 
         Ok(())
     }

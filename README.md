@@ -13,6 +13,8 @@ A rich Markdown previewer for the terminal and browser, written in Rust.
 - Horizontal rules
 - Bold, italic, strikethrough text
 - Inline code highlighting
+- Footnotes support
+- Table of contents generation (`--toc`)
 - Automatic paging with less
 - Watch mode with live reload
 
@@ -24,13 +26,14 @@ A rich Markdown previewer for the terminal and browser, written in Rust.
 - Directory mode with sidebar navigation
 - Collapsible folder tree in sidebar
 - External links open in new tab
+- Footnotes support
+- Table of contents generation (`--toc`)
 - Auto-shutdown when browser tab closes
 
 ### Planned Features
 - KaTeX math rendering
 - Mermaid diagram support
 - Image display (iTerm2/Kitty protocol)
-- Table of contents generation
 
 ## Installation
 
@@ -65,6 +68,12 @@ mdp -b ./docs
 # Disable pager (output directly)
 mdp --no-pager README.md
 
+# Show table of contents
+mdp --toc README.md
+
+# Browser mode with TOC
+mdp -b --toc README.md
+
 # Specify theme (terminal mode)
 mdp --theme light README.md
 
@@ -81,7 +90,7 @@ mdp --help
 | `-p, --port <PORT>` | Port for browser mode (default: 3000) |
 | `--theme <THEME>` | Theme: dark or light (default: dark) |
 | `--no-pager` | Disable pager, output directly to stdout |
-| `--toc` | Show table of contents (not yet implemented) |
+| `--toc` | Show table of contents at document top |
 
 ## Requirements
 
