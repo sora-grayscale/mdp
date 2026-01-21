@@ -104,6 +104,45 @@ impl FileTree {
         Ok(FileTree { base_path, files })
     }
 
+    /// Create a FileTree from a file with context (sibling/child markdown files)
+    /// This scans the file's parent directory recursively for related markdown files
+    pub fn from_file_with_context(path: &Path) -> std::io::Result<Self> {
+        let absolute_path = path.canonicalize()?;
+        let base_path = absolute_path
+            .parent()
+            .unwrap_or(&absolute_path)
+            .to_path_buf();
+
+        // Use from_directory to get all markdown files in the parent directory
+        let mut tree = Self::from_directory(&base_path)?;
+
+        // Ensure the specified file is the default (first in list)
+        let target_relative = absolute_path
+            .file_name()
+            .map(PathBuf::from)
+            .unwrap_or_else(|| absolute_path.clone());
+
+        // Re-sort: specified file first, then README, then alphabetically
+        tree.files.sort_by(|a, b| {
+            let a_is_target = a.relative_path == target_relative;
+            let b_is_target = b.relative_path == target_relative;
+            let a_is_readme = a.name.to_lowercase() == "readme";
+            let b_is_readme = b.name.to_lowercase() == "readme";
+
+            match (a_is_target, b_is_target) {
+                (true, false) => std::cmp::Ordering::Less,
+                (false, true) => std::cmp::Ordering::Greater,
+                _ => match (a_is_readme, b_is_readme) {
+                    (true, false) => std::cmp::Ordering::Less,
+                    (false, true) => std::cmp::Ordering::Greater,
+                    _ => a.relative_path.cmp(&b.relative_path),
+                },
+            }
+        });
+
+        Ok(tree)
+    }
+
     /// Get the default file to display (README or first file)
     pub fn default_file(&self) -> Option<&MarkdownFile> {
         self.files.first()
