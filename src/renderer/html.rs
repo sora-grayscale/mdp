@@ -1,5 +1,5 @@
 use crate::files::FileTree;
-use pulldown_cmark::{Options, Parser, html};
+use pulldown_cmark::{Event, Options, Parser, Tag, TagEnd, html};
 
 const TEMPLATE: &str = include_str!("../../assets/template.html");
 const TEMPLATE_SIDEBAR: &str = include_str!("../../assets/template_sidebar.html");
@@ -138,10 +138,46 @@ impl HtmlRenderer {
         options.insert(Options::ENABLE_TABLES);
         options.insert(Options::ENABLE_STRIKETHROUGH);
         options.insert(Options::ENABLE_TASKLISTS);
+        options.insert(Options::ENABLE_FOOTNOTES);
 
         let parser = Parser::new_ext(markdown, options);
+
+        // Separate footnote definitions from other events
+        let mut main_events: Vec<Event> = Vec::new();
+        let mut footnote_events: Vec<Event> = Vec::new();
+        let mut in_footnote = false;
+
+        for event in parser {
+            match &event {
+                Event::Start(Tag::FootnoteDefinition(_)) => {
+                    in_footnote = true;
+                    footnote_events.push(event);
+                }
+                Event::End(TagEnd::FootnoteDefinition) => {
+                    footnote_events.push(event);
+                    in_footnote = false;
+                }
+                _ => {
+                    if in_footnote {
+                        footnote_events.push(event);
+                    } else {
+                        main_events.push(event);
+                    }
+                }
+            }
+        }
+
+        // Render main content first
         let mut html_output = String::new();
-        html::push_html(&mut html_output, parser);
+        html::push_html(&mut html_output, main_events.into_iter());
+
+        // Render footnotes at the end with separator
+        if !footnote_events.is_empty() {
+            html_output.push_str("<hr class=\"footnotes-separator\" />\n");
+            html_output.push_str("<section class=\"footnotes\">\n");
+            html::push_html(&mut html_output, footnote_events.into_iter());
+            html_output.push_str("</section>\n");
+        }
 
         // Process links
         self.process_links(&html_output)
