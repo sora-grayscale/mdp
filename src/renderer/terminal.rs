@@ -278,6 +278,11 @@ impl TerminalRenderer {
         language: Option<&str>,
         content: &str,
     ) -> io::Result<()> {
+        // Special handling for mermaid diagrams
+        if language == Some("mermaid") {
+            return self.render_mermaid_placeholder(out, content);
+        }
+
         let syntax_theme = if self.theme == "light" {
             "base16-ocean.light"
         } else {
@@ -602,6 +607,49 @@ impl TerminalRenderer {
         for element in content {
             self.render_element(out, element, 4)?;
         }
+        Ok(())
+    }
+
+    fn render_mermaid_placeholder<W: Write>(&self, out: &mut W, content: &str) -> io::Result<()> {
+        let box_width = self.term_width.saturating_sub(2);
+
+        // Draw mermaid header
+        execute!(out, SetForegroundColor(Color::Magenta))?;
+        writeln!(out, "┌{}┐", "─".repeat(box_width))?;
+        writeln!(
+            out,
+            "│ 🧜 Mermaid Diagram {:>width$}│",
+            "",
+            width = box_width - 21
+        )?;
+        execute!(out, SetForegroundColor(Color::DarkGrey))?;
+        writeln!(out, "├{}┤", "─".repeat(box_width))?;
+
+        // Draw mermaid code
+        execute!(out, ResetColor)?;
+        for line in content.lines() {
+            execute!(out, SetForegroundColor(Color::DarkGrey))?;
+            write!(out, "│ ")?;
+            execute!(out, SetForegroundColor(Color::Cyan))?;
+            let line_display = if line.width() > box_width - 3 {
+                format!("{}...", &line[..box_width.saturating_sub(6)])
+            } else {
+                line.to_string()
+            };
+            write!(out, "{:width$}", line_display, width = box_width - 2)?;
+            execute!(out, SetForegroundColor(Color::DarkGrey))?;
+            writeln!(out, "│")?;
+        }
+
+        // Draw footer with hint
+        writeln!(out, "├{}┤", "─".repeat(box_width))?;
+        execute!(out, SetForegroundColor(Color::DarkGrey))?;
+        let hint = "(View rendered diagram: mdp -b)";
+        writeln!(out, "│{:^width$}│", hint, width = box_width)?;
+        writeln!(out, "└{}┘", "─".repeat(box_width))?;
+        execute!(out, ResetColor)?;
+        writeln!(out)?;
+
         Ok(())
     }
 }
