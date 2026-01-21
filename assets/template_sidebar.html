@@ -505,6 +505,67 @@
             }
         }
 
+        // Update sidebar from API
+        async function updateSidebar() {
+            try {
+                const response = await fetch('/api/files');
+                if (!response.ok) throw new Error('Failed to fetch files');
+
+                const data = await response.json();
+                const sidebarContent = document.querySelector('.sidebar-content');
+
+                // Group files by directory
+                const dirs = {};
+                data.files.forEach(file => {
+                    const lastSlash = file.path.lastIndexOf('/');
+                    const dir = lastSlash === -1 ? '' : file.path.substring(0, lastSlash);
+                    if (!dirs[dir]) dirs[dir] = [];
+                    dirs[dir].push(file);
+                });
+
+                // Build sidebar HTML
+                let html = '';
+                const sortedDirs = Object.keys(dirs).sort();
+
+                sortedDirs.forEach(dir => {
+                    const files = dirs[dir];
+                    if (dir === '') {
+                        // Root level files
+                        files.forEach(file => {
+                            const isActive = file.path === currentFile;
+                            html += `<a href="javascript:void(0)" class="sidebar-item root-item${isActive ? ' active' : ''}" data-path="${escapeHtml(file.path)}" onclick="loadFile('${escapeHtml(file.path)}')">${icons.file}<span class="sidebar-item-name">${escapeHtml(file.name)}</span></a>`;
+                        });
+                    } else {
+                        // Files in a folder
+                        const folderId = dir.replace(/\//g, '_').replace(/\\/g, '_');
+                        const isCollapsed = collapsedFolders[folderId] ? ' collapsed' : '';
+                        html += `<div class="sidebar-folder${isCollapsed}" data-folder="${escapeHtml(folderId)}">
+                            <div class="sidebar-folder-header" onclick="toggleFolder('${escapeHtml(folderId)}')">
+                                ${icons.chevron}
+                                <span class="sidebar-folder-name">${escapeHtml(dir)}</span>
+                            </div>
+                            <div class="sidebar-folder-items">`;
+                        files.forEach(file => {
+                            const isActive = file.path === currentFile;
+                            html += `<a href="javascript:void(0)" class="sidebar-item${isActive ? ' active' : ''}" data-path="${escapeHtml(file.path)}" onclick="loadFile('${escapeHtml(file.path)}')">${icons.file}<span class="sidebar-item-name">${escapeHtml(file.name)}</span></a>`;
+                        });
+                        html += '</div></div>';
+                    }
+                });
+
+                sidebarContent.innerHTML = html;
+            } catch (e) {
+                console.error('Failed to update sidebar:', e);
+            }
+        }
+
+        // HTML escape helper
+        function escapeHtml(text) {
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
+
         // Expand the parent folder of a file path
         function expandParentFolder(path) {
             // Get the directory part of the path
@@ -598,6 +659,9 @@
                         } else {
                             window.location.reload();
                         }
+                    } else if (event.data === 'tree-update') {
+                        showIndicator('Updating sidebar...', false);
+                        updateSidebar();
                     }
                 };
 
