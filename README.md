@@ -24,6 +24,7 @@ A rich Markdown previewer for the terminal and browser, written in Rust.
 - Live reload on file changes
 - Syntax highlighting (powered by highlight.js)
 - Directory mode with sidebar navigation
+- Sidebar option for single file mode (`-s`)
 - Collapsible folder tree in sidebar
 - External links open in new tab
 - Footnotes support
@@ -65,6 +66,9 @@ mdp -bw README.md
 # Directory mode (browse multiple files)
 mdp -b ./docs
 
+# Single file with sidebar (show related files)
+mdp -bs README.md
+
 # Disable pager (output directly)
 mdp --no-pager README.md
 
@@ -87,6 +91,7 @@ mdp --help
 |--------|-------------|
 | `-b, --browser` | Open in browser with GitHub-style rendering |
 | `-w, --watch` | Watch for file changes and auto-reload |
+| `-s, --sidebar` | Show sidebar with related files (single file mode) |
 | `-p, --port <PORT>` | Port for browser mode (default: 3000) |
 | `--theme <THEME>` | Theme: dark or light (default: dark) |
 | `--no-pager` | Disable pager, output directly to stdout |
