@@ -9,9 +9,10 @@ use axum::{
     routing::get,
 };
 use serde::{Deserialize, Serialize};
+use std::path::PathBuf;
 use std::sync::Arc;
 use std::sync::atomic::{AtomicUsize, Ordering};
-use tokio::sync::broadcast;
+use tokio::sync::{RwLock, broadcast};
 
 use crate::files::FileTree;
 use crate::renderer::html::HtmlRenderer;
@@ -38,21 +39,30 @@ pub struct ViewQuery {
     pub file: Option<String>,
 }
 
+/// Message types for WebSocket communication
+#[derive(Clone, Debug)]
+pub enum WsMessage {
+    Reload,
+    TreeUpdate,
+}
+
 pub struct ServerState {
-    pub file_tree: FileTree,
+    pub file_tree: RwLock<FileTree>,
+    pub base_path: PathBuf,
     pub title: String,
-    pub reload_tx: broadcast::Sender<()>,
+    pub reload_tx: broadcast::Sender<WsMessage>,
     pub shutdown_tx: broadcast::Sender<()>,
     pub connection_count: AtomicUsize,
     pub show_toc: bool,
 }
 
 impl ServerState {
-    fn render_html(&self, file_path: Option<&str>) -> String {
+    async fn render_html(&self, file_path: Option<&str>) -> String {
+        let file_tree = self.file_tree.read().await;
         let file = if let Some(path) = file_path {
-            self.file_tree.find_file(path)
+            file_tree.find_file(path)
         } else {
-            self.file_tree.default_file()
+            file_tree.default_file()
         };
 
         let (content, current_file) = if let Some(f) = file {
@@ -64,18 +74,27 @@ impl ServerState {
 
         let renderer = HtmlRenderer::new(&self.title).with_toc(self.show_toc);
 
-        if self.file_tree.is_single_file() {
+        if file_tree.is_single_file() {
             renderer.render(&content)
         } else {
-            renderer.render_with_sidebar(&content, &self.file_tree, current_file.as_deref())
+            renderer.render_with_sidebar(&content, &file_tree, current_file.as_deref())
         }
     }
 
-    fn render_content_only(&self, file_path: &str) -> Option<String> {
-        let file = self.file_tree.find_file(file_path)?;
+    async fn render_content_only(&self, file_path: &str) -> Option<String> {
+        let file_tree = self.file_tree.read().await;
+        let file = file_tree.find_file(file_path)?;
         let content = std::fs::read_to_string(&file.absolute_path).ok()?;
         let renderer = HtmlRenderer::new(&self.title).with_toc(self.show_toc);
         Some(renderer.render_content(&content))
+    }
+
+    /// Rebuild the file tree from the base path
+    pub async fn rebuild_file_tree(&self) -> Result<(), std::io::Error> {
+        let new_tree = FileTree::from_directory(&self.base_path)?;
+        let mut file_tree = self.file_tree.write().await;
+        *file_tree = new_tree;
+        Ok(())
     }
 }
 
@@ -86,11 +105,15 @@ pub async fn start_server(
     watch: bool,
     show_toc: bool,
 ) -> std::io::Result<()> {
-    let (reload_tx, _) = broadcast::channel::<()>(16);
+    let (reload_tx, _) = broadcast::channel::<WsMessage>(16);
     let (shutdown_tx, mut shutdown_rx) = broadcast::channel::<()>(1);
 
+    let base_path = file_tree.base_path.clone();
+    let is_single_file = file_tree.is_single_file();
+
     let state = Arc::new(ServerState {
-        file_tree: file_tree.clone(),
+        file_tree: RwLock::new(file_tree.clone()),
+        base_path: base_path.clone(),
         title: title.to_string(),
         reload_tx: reload_tx.clone(),
         shutdown_tx: shutdown_tx.clone(),
@@ -100,12 +123,11 @@ pub async fn start_server(
 
     // Start file watcher if watch mode is enabled
     if watch {
-        let watch_tx = reload_tx.clone();
-
-        if file_tree.is_single_file() {
+        if is_single_file {
             // Watch single file
             if let Some(file) = file_tree.default_file() {
                 let watch_path = file.absolute_path.clone();
+                let watch_tx = reload_tx.clone();
                 tokio::spawn(async move {
                     if let Err(e) = watch_file_async(&watch_path, watch_tx).await {
                         eprintln!("Failed to start file watcher: {}", e);
@@ -113,10 +135,18 @@ pub async fn start_server(
                 });
             }
         } else {
-            // Watch entire directory
-            let watch_path = file_tree.base_path.clone();
+            // Watch entire directory with tree update support
+            let watch_path = base_path.clone();
+            let watch_tx = reload_tx.clone();
+            let watch_state = state.clone();
             tokio::spawn(async move {
-                if let Err(e) = crate::watcher::watch_directory_async(&watch_path, watch_tx).await {
+                if let Err(e) = crate::watcher::watch_directory_with_tree_update(
+                    &watch_path,
+                    watch_tx,
+                    watch_state,
+                )
+                .await
+                {
                     eprintln!("Failed to start directory watcher: {}", e);
                 }
             });
@@ -165,12 +195,15 @@ async fn serve_html(
 ) -> (HeaderMap, Html<String>) {
     let mut headers = HeaderMap::new();
     headers.insert(header::CACHE_CONTROL, "no-store".parse().unwrap());
-    (headers, Html(state.render_html(query.file.as_deref())))
+    (
+        headers,
+        Html(state.render_html(query.file.as_deref()).await),
+    )
 }
 
 async fn serve_file_list(State(state): State<Arc<ServerState>>) -> Json<FileListResponse> {
-    let files = state
-        .file_tree
+    let file_tree = state.file_tree.read().await;
+    let files = file_tree
         .files
         .iter()
         .map(|f| FileInfo {
@@ -182,7 +215,7 @@ async fn serve_file_list(State(state): State<Arc<ServerState>>) -> Json<FileList
 
     Json(FileListResponse {
         files,
-        base_path: state.file_tree.base_path.to_string_lossy().to_string(),
+        base_path: file_tree.base_path.to_string_lossy().to_string(),
     })
 }
 
@@ -195,7 +228,7 @@ async fn serve_content(
     State(state): State<Arc<ServerState>>,
     Query(query): Query<ContentQuery>,
 ) -> Response {
-    match state.render_content_only(&query.file) {
+    match state.render_content_only(&query.file).await {
         Some(content) => {
             let mut headers = HeaderMap::new();
             headers.insert(header::CACHE_CONTROL, "no-store".parse().unwrap());
@@ -233,12 +266,15 @@ async fn handle_socket(mut socket: WebSocket, state: Arc<ServerState>) {
 
     loop {
         tokio::select! {
-            // Wait for reload signal
+            // Wait for reload/tree-update signal
             result = rx.recv() => {
                 match result {
-                    Ok(_) => {
-                        // Send reload signal to client
-                        if socket.send(Message::Text("reload".to_string())).await.is_err() {
+                    Ok(msg) => {
+                        let msg_text = match msg {
+                            WsMessage::Reload => "reload",
+                            WsMessage::TreeUpdate => "tree-update",
+                        };
+                        if socket.send(Message::Text(msg_text.to_string())).await.is_err() {
                             break;
                         }
                     }
