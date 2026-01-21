@@ -7,6 +7,7 @@
     <link rel="stylesheet" href="/assets/github.css">
     <link id="hljs-theme" rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/github.min.css">
     <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.min.js"></script>
     <style>
         :root {
             --sidebar-width: 260px;
@@ -333,6 +334,59 @@
         .sidebar::-webkit-scrollbar-thumb:hover {
             background: var(--text-muted);
         }
+
+        /* Mermaid diagram styling - VSCode inspired */
+        .mermaid-container {
+            margin: 16px 0;
+            border-radius: 8px;
+            background: var(--color-canvas-subtle, #f6f8fa);
+            border: 1px solid var(--color-border-default, #d0d7de);
+            overflow: hidden;
+            transition: all 0.2s ease;
+        }
+        .mermaid-container:hover {
+            box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+        }
+        .mermaid-header {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 8px 12px;
+            background: var(--color-canvas-default, #ffffff);
+            border-bottom: 1px solid var(--color-border-default, #d0d7de);
+            font-size: 12px;
+            color: var(--color-fg-muted, #57606a);
+        }
+        .mermaid-header svg {
+            width: 16px;
+            height: 16px;
+            fill: none;
+            stroke: currentColor;
+            stroke-width: 2;
+        }
+        .mermaid-header span {
+            font-weight: 500;
+        }
+        .mermaid-body {
+            padding: 24px;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100px;
+            overflow-x: auto;
+        }
+        .mermaid-body svg {
+            max-width: 100%;
+            height: auto;
+        }
+        [data-theme="dark"] .mermaid-container {
+            background: var(--color-canvas-subtle, #161b22);
+            border-color: var(--color-border-default, #30363d);
+        }
+        [data-theme="dark"] .mermaid-header {
+            background: var(--color-canvas-default, #0d1117);
+            border-color: var(--color-border-default, #30363d);
+        }
     </style>
 </head>
 <body>
@@ -424,6 +478,36 @@
 
         hljs.highlightAll();
 
+        // Mermaid initialization
+        function initMermaid() {
+            const isDark = document.documentElement.getAttribute('data-theme') === 'dark' ||
+                (!document.documentElement.getAttribute('data-theme') &&
+                 window.matchMedia('(prefers-color-scheme: dark)').matches);
+
+            mermaid.initialize({
+                startOnLoad: false,
+                theme: isDark ? 'dark' : 'default',
+                securityLevel: 'loose',
+                fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif',
+            });
+
+            document.querySelectorAll('.mermaid').forEach(async (el, index) => {
+                if (el.getAttribute('data-processed')) return;
+                const code = el.textContent;
+                const id = `mermaid-diagram-${Date.now()}-${index}`;
+                try {
+                    const { svg } = await mermaid.render(id, code);
+                    el.innerHTML = svg;
+                    el.setAttribute('data-processed', 'true');
+                } catch (e) {
+                    el.innerHTML = `<div style="color: var(--color-danger-fg, #cf222e); padding: 12px;">
+                        <strong>Mermaid Error:</strong> ${e.message}
+                    </div>`;
+                }
+            });
+        }
+        initMermaid();
+
         // SVG Icons
         const icons = {
             file: '<svg class="sidebar-item-icon" viewBox="0 0 16 16"><path d="M2 1.75C2 .784 2.784 0 3.75 0h6.586c.464 0 .909.184 1.237.513l2.914 2.914c.329.328.513.773.513 1.237v9.586A1.75 1.75 0 0 1 13.25 16h-9.5A1.75 1.75 0 0 1 2 14.25Zm1.75-.25a.25.25 0 0 0-.25.25v12.5c0 .138.112.25.25.25h9.5a.25.25 0 0 0 .25-.25V6h-2.75A1.75 1.75 0 0 1 9 4.25V1.5Zm6.75.062V4.25c0 .138.112.25.25.25h2.688l-.011-.013-2.914-2.914-.013-.011Z"/></svg>',
@@ -498,8 +582,9 @@
                 // Update current file
                 currentFile = path;
 
-                // Re-highlight code blocks
+                // Re-highlight code blocks and render mermaid
                 hljs.highlightAll();
+                initMermaid();
             } catch (e) {
                 console.error('Failed to load file:', e);
             }

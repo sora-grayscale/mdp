@@ -259,8 +259,38 @@ impl HtmlRenderer {
             html_output.push_str("</section>\n");
         }
 
+        // Process mermaid code blocks
+        let html_output = self.process_mermaid(&html_output);
+
         // Process links
         self.process_links(&html_output)
+    }
+
+    /// Process mermaid code blocks into styled containers
+    fn process_mermaid(&self, html: &str) -> String {
+        let mermaid_pattern =
+            regex::Regex::new(r#"<pre><code class="language-mermaid">([^<]*)</code></pre>"#).ok();
+
+        if let Some(re) = mermaid_pattern {
+            re.replace_all(html, |caps: &regex::Captures| {
+                let code = html_escape::decode_html_entities(&caps[1]);
+                format!(
+                    r#"<div class="mermaid-container">
+    <div class="mermaid-header">
+        <svg viewBox="0 0 24 24"><path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/></svg>
+        <span>Mermaid Diagram</span>
+    </div>
+    <div class="mermaid-body">
+        <pre class="mermaid">{}</pre>
+    </div>
+</div>"#,
+                    code.trim()
+                )
+            })
+            .to_string()
+        } else {
+            html.to_string()
+        }
     }
 
     fn heading_level_to_u8(level: HeadingLevel) -> u8 {
