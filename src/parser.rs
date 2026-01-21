@@ -95,38 +95,57 @@ pub struct TocEntry {
     pub anchor: String,
 }
 
+/// Generate an anchor slug from heading text
+pub fn generate_anchor(text: &str) -> String {
+    text.to_lowercase()
+        .chars()
+        .map(|c| {
+            if c.is_alphanumeric() || c == ' ' || c == '-' {
+                c
+            } else {
+                ' '
+            }
+        })
+        .collect::<String>()
+        .split_whitespace()
+        .collect::<Vec<_>>()
+        .join("-")
+}
+
+/// Manages anchor generation with duplicate handling
+#[derive(Debug, Default)]
+pub struct AnchorGenerator {
+    counts: std::collections::HashMap<String, usize>,
+}
+
+impl AnchorGenerator {
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    /// Generate a unique anchor from text, handling duplicates
+    pub fn generate(&mut self, text: &str) -> String {
+        let base_anchor = generate_anchor(text);
+
+        let anchor = if let Some(count) = self.counts.get(&base_anchor) {
+            format!("{}-{}", base_anchor, count)
+        } else {
+            base_anchor.clone()
+        };
+
+        *self.counts.entry(base_anchor).or_insert(0) += 1;
+        anchor
+    }
+}
+
 /// Generate table of contents from a document
 pub fn generate_toc(document: &Document) -> Vec<TocEntry> {
     let mut entries = Vec::new();
-    let mut anchor_counts: std::collections::HashMap<String, usize> =
-        std::collections::HashMap::new();
+    let mut anchor_gen = AnchorGenerator::new();
 
     for element in &document.elements {
         if let Element::Heading { level, content } = element {
-            // Generate anchor from heading text
-            let base_anchor = content
-                .to_lowercase()
-                .chars()
-                .map(|c| {
-                    if c.is_alphanumeric() || c == ' ' || c == '-' {
-                        c
-                    } else {
-                        ' '
-                    }
-                })
-                .collect::<String>()
-                .split_whitespace()
-                .collect::<Vec<_>>()
-                .join("-");
-
-            // Handle duplicate anchors
-            let anchor = if let Some(count) = anchor_counts.get(&base_anchor) {
-                format!("{}-{}", base_anchor, count)
-            } else {
-                base_anchor.clone()
-            };
-
-            *anchor_counts.entry(base_anchor).or_insert(0) += 1;
+            let anchor = anchor_gen.generate(content);
 
             entries.push(TocEntry {
                 level: *level,
@@ -634,5 +653,24 @@ mod tests {
         assert!(footnote.is_some(), "Should have footnote definition");
         let content = footnote.unwrap();
         assert!(!content.is_empty(), "Footnote should have content");
+    }
+
+    #[test]
+    fn test_generate_anchor() {
+        assert_eq!(generate_anchor("Hello World"), "hello-world");
+        assert_eq!(generate_anchor("Hello, World!"), "hello-world");
+        assert_eq!(generate_anchor("Test 123"), "test-123");
+        assert_eq!(generate_anchor("CamelCase"), "camelcase");
+        assert_eq!(generate_anchor("multiple   spaces"), "multiple-spaces");
+    }
+
+    #[test]
+    fn test_anchor_generator_duplicates() {
+        let mut anchor_gen = AnchorGenerator::new();
+        assert_eq!(anchor_gen.generate("Hello"), "hello");
+        assert_eq!(anchor_gen.generate("Hello"), "hello-1");
+        assert_eq!(anchor_gen.generate("Hello"), "hello-2");
+        assert_eq!(anchor_gen.generate("World"), "world");
+        assert_eq!(anchor_gen.generate("Hello"), "hello-3");
     }
 }

@@ -1,4 +1,5 @@
 use crate::files::FileTree;
+use crate::parser::AnchorGenerator;
 use pulldown_cmark::{CowStr, Event, HeadingLevel, Options, Parser, Tag, TagEnd, html};
 
 const TEMPLATE: &str = include_str!("../../assets/template.html");
@@ -151,8 +152,7 @@ impl HtmlRenderer {
 
         // Collect TOC entries and add IDs to headings
         let mut toc_entries: Vec<(u8, String, String)> = Vec::new(); // (level, text, anchor)
-        let mut anchor_counts: std::collections::HashMap<String, usize> =
-            std::collections::HashMap::new();
+        let mut anchor_gen = AnchorGenerator::new();
         let mut main_events: Vec<Event> = Vec::new();
         let mut footnote_events: Vec<Event> = Vec::new();
         let mut in_footnote = false;
@@ -179,28 +179,8 @@ impl HtmlRenderer {
                 Event::End(TagEnd::Heading(_)) => {
                     in_heading = false;
 
-                    // Generate anchor
-                    let base_anchor = current_heading_text
-                        .to_lowercase()
-                        .chars()
-                        .map(|c| {
-                            if c.is_alphanumeric() || c == ' ' || c == '-' {
-                                c
-                            } else {
-                                ' '
-                            }
-                        })
-                        .collect::<String>()
-                        .split_whitespace()
-                        .collect::<Vec<_>>()
-                        .join("-");
-
-                    let anchor = if let Some(count) = anchor_counts.get(&base_anchor) {
-                        format!("{}-{}", base_anchor, count)
-                    } else {
-                        base_anchor.clone()
-                    };
-                    *anchor_counts.entry(base_anchor).or_insert(0) += 1;
+                    // Generate anchor using shared utility
+                    let anchor = anchor_gen.generate(&current_heading_text);
 
                     // Store TOC entry
                     toc_entries.push((
