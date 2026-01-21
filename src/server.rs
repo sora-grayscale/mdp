@@ -44,6 +44,7 @@ pub struct ServerState {
     pub reload_tx: broadcast::Sender<()>,
     pub shutdown_tx: broadcast::Sender<()>,
     pub connection_count: AtomicUsize,
+    pub show_toc: bool,
 }
 
 impl ServerState {
@@ -61,7 +62,7 @@ impl ServerState {
             ("# No file selected".to_string(), None)
         };
 
-        let renderer = HtmlRenderer::new(&self.title);
+        let renderer = HtmlRenderer::new(&self.title).with_toc(self.show_toc);
 
         if self.file_tree.is_single_file() {
             renderer.render(&content)
@@ -73,7 +74,7 @@ impl ServerState {
     fn render_content_only(&self, file_path: &str) -> Option<String> {
         let file = self.file_tree.find_file(file_path)?;
         let content = std::fs::read_to_string(&file.absolute_path).ok()?;
-        let renderer = HtmlRenderer::new(&self.title);
+        let renderer = HtmlRenderer::new(&self.title).with_toc(self.show_toc);
         Some(renderer.render_content(&content))
     }
 }
@@ -83,6 +84,7 @@ pub async fn start_server(
     title: &str,
     port: u16,
     watch: bool,
+    show_toc: bool,
 ) -> std::io::Result<()> {
     let (reload_tx, _) = broadcast::channel::<()>(16);
     let (shutdown_tx, mut shutdown_rx) = broadcast::channel::<()>(1);
@@ -93,6 +95,7 @@ pub async fn start_server(
         reload_tx: reload_tx.clone(),
         shutdown_tx: shutdown_tx.clone(),
         connection_count: AtomicUsize::new(0),
+        show_toc,
     });
 
     // Start file watcher if watch mode is enabled

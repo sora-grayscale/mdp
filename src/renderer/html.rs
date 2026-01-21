@@ -1,5 +1,5 @@
 use crate::files::FileTree;
-use pulldown_cmark::{Event, Options, Parser, Tag, TagEnd, html};
+use pulldown_cmark::{CowStr, Event, HeadingLevel, Options, Parser, Tag, TagEnd, html};
 
 const TEMPLATE: &str = include_str!("../../assets/template.html");
 const TEMPLATE_SIDEBAR: &str = include_str!("../../assets/template_sidebar.html");
@@ -11,13 +11,20 @@ const ICON_CHEVRON: &str = r#"<svg class="sidebar-folder-icon" viewBox="0 0 16 1
 
 pub struct HtmlRenderer {
     title: String,
+    show_toc: bool,
 }
 
 impl HtmlRenderer {
     pub fn new(title: &str) -> Self {
         Self {
             title: title.to_string(),
+            show_toc: false,
         }
+    }
+
+    pub fn with_toc(mut self, show_toc: bool) -> Self {
+        self.show_toc = show_toc;
+        self
     }
 
     /// Render markdown content to full HTML page (single file mode)
@@ -142,10 +149,16 @@ impl HtmlRenderer {
 
         let parser = Parser::new_ext(markdown, options);
 
-        // Separate footnote definitions from other events
+        // Collect TOC entries and add IDs to headings
+        let mut toc_entries: Vec<(u8, String, String)> = Vec::new(); // (level, text, anchor)
+        let mut anchor_counts: std::collections::HashMap<String, usize> =
+            std::collections::HashMap::new();
         let mut main_events: Vec<Event> = Vec::new();
         let mut footnote_events: Vec<Event> = Vec::new();
         let mut in_footnote = false;
+        let mut in_heading = false;
+        let mut current_heading_level: u8 = 0;
+        let mut current_heading_text = String::new();
 
         for event in parser {
             match &event {
@@ -157,18 +170,105 @@ impl HtmlRenderer {
                     footnote_events.push(event);
                     in_footnote = false;
                 }
+                Event::Start(Tag::Heading { level, .. }) => {
+                    in_heading = true;
+                    current_heading_level = Self::heading_level_to_u8(*level);
+                    current_heading_text.clear();
+                    // Don't push yet, we'll create a new event with id
+                }
+                Event::End(TagEnd::Heading(_)) => {
+                    in_heading = false;
+
+                    // Generate anchor
+                    let base_anchor = current_heading_text
+                        .to_lowercase()
+                        .chars()
+                        .map(|c| {
+                            if c.is_alphanumeric() || c == ' ' || c == '-' {
+                                c
+                            } else {
+                                ' '
+                            }
+                        })
+                        .collect::<String>()
+                        .split_whitespace()
+                        .collect::<Vec<_>>()
+                        .join("-");
+
+                    let anchor = if let Some(count) = anchor_counts.get(&base_anchor) {
+                        format!("{}-{}", base_anchor, count)
+                    } else {
+                        base_anchor.clone()
+                    };
+                    *anchor_counts.entry(base_anchor).or_insert(0) += 1;
+
+                    // Store TOC entry
+                    toc_entries.push((
+                        current_heading_level,
+                        current_heading_text.clone(),
+                        anchor.clone(),
+                    ));
+
+                    // Create heading with id attribute
+                    let level = match current_heading_level {
+                        1 => HeadingLevel::H1,
+                        2 => HeadingLevel::H2,
+                        3 => HeadingLevel::H3,
+                        4 => HeadingLevel::H4,
+                        5 => HeadingLevel::H5,
+                        _ => HeadingLevel::H6,
+                    };
+                    main_events.push(Event::Start(Tag::Heading {
+                        level,
+                        id: Some(CowStr::Boxed(anchor.into_boxed_str())),
+                        classes: vec![],
+                        attrs: vec![],
+                    }));
+                    main_events.push(Event::Text(CowStr::Boxed(
+                        current_heading_text.clone().into_boxed_str(),
+                    )));
+                    main_events.push(event);
+                }
+                Event::Text(text) if in_heading => {
+                    current_heading_text.push_str(text);
+                }
+                Event::Code(code) if in_heading => {
+                    current_heading_text.push_str(code);
+                }
                 _ => {
                     if in_footnote {
                         footnote_events.push(event);
-                    } else {
+                    } else if !in_heading {
                         main_events.push(event);
                     }
                 }
             }
         }
 
-        // Render main content first
+        // Build TOC HTML if enabled
         let mut html_output = String::new();
+        if self.show_toc && !toc_entries.is_empty() {
+            html_output.push_str("<nav class=\"toc\">\n");
+            html_output.push_str("<h2>📑 Table of Contents</h2>\n");
+            html_output.push_str("<ul>\n");
+
+            let min_level = toc_entries.iter().map(|(l, _, _)| *l).min().unwrap_or(1);
+            for (level, text, anchor) in &toc_entries {
+                let indent = "  ".repeat((*level - min_level) as usize);
+                html_output.push_str(&format!(
+                    "{}<li><a href=\"#{}\">{}</a></li>\n",
+                    indent,
+                    html_escape::encode_text(anchor),
+                    html_escape::encode_text(text)
+                ));
+            }
+
+            html_output.push_str("</ul>\n");
+            html_output.push_str("</nav>\n");
+            html_output.push_str("<hr />\n");
+        }
+
+        // Render main content
         html::push_html(&mut html_output, main_events.into_iter());
 
         // Render footnotes at the end with separator
@@ -181,6 +281,17 @@ impl HtmlRenderer {
 
         // Process links
         self.process_links(&html_output)
+    }
+
+    fn heading_level_to_u8(level: HeadingLevel) -> u8 {
+        match level {
+            HeadingLevel::H1 => 1,
+            HeadingLevel::H2 => 2,
+            HeadingLevel::H3 => 3,
+            HeadingLevel::H4 => 4,
+            HeadingLevel::H5 => 5,
+            HeadingLevel::H6 => 6,
+        }
     }
 
     /// Process links in HTML
@@ -236,7 +347,7 @@ mod tests {
     fn test_basic_rendering() {
         let renderer = HtmlRenderer::new("Test");
         let result = renderer.render("# Hello\n\nWorld");
-        assert!(result.contains("<h1>Hello</h1>"));
+        assert!(result.contains("<h1 id=\"hello\">Hello</h1>"));
         assert!(result.contains("<p>World</p>"));
     }
 

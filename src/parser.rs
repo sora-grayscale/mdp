@@ -87,6 +87,58 @@ impl From<pulldown_cmark::Alignment> for Alignment {
     }
 }
 
+/// Entry in the table of contents
+#[derive(Debug, Clone)]
+pub struct TocEntry {
+    pub level: u8,
+    pub text: String,
+    pub anchor: String,
+}
+
+/// Generate table of contents from a document
+pub fn generate_toc(document: &Document) -> Vec<TocEntry> {
+    let mut entries = Vec::new();
+    let mut anchor_counts: std::collections::HashMap<String, usize> =
+        std::collections::HashMap::new();
+
+    for element in &document.elements {
+        if let Element::Heading { level, content } = element {
+            // Generate anchor from heading text
+            let base_anchor = content
+                .to_lowercase()
+                .chars()
+                .map(|c| {
+                    if c.is_alphanumeric() || c == ' ' || c == '-' {
+                        c
+                    } else {
+                        ' '
+                    }
+                })
+                .collect::<String>()
+                .split_whitespace()
+                .collect::<Vec<_>>()
+                .join("-");
+
+            // Handle duplicate anchors
+            let anchor = if let Some(count) = anchor_counts.get(&base_anchor) {
+                format!("{}-{}", base_anchor, count)
+            } else {
+                base_anchor.clone()
+            };
+
+            *anchor_counts.entry(base_anchor).or_insert(0) += 1;
+
+            entries.push(TocEntry {
+                level: *level,
+                text: content.clone(),
+                anchor,
+            });
+        }
+    }
+
+    entries
+}
+
 fn heading_level_to_u8(level: HeadingLevel) -> u8 {
     match level {
         HeadingLevel::H1 => 1,

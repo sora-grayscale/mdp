@@ -122,20 +122,20 @@ fn main() {
         // Browser mode (with optional watch)
         let port = find_available_port(args.port);
         let rt = tokio::runtime::Runtime::new().expect("Failed to create runtime");
-        if let Err(e) = rt.block_on(start_server(file_tree, &title, port, args.watch)) {
+        if let Err(e) = rt.block_on(start_server(file_tree, &title, port, args.watch, args.toc)) {
             eprintln!("Error: Server failed: {}", e);
             process::exit(1);
         }
     } else if args.watch {
         // Terminal watch mode (single file only for now)
         if let Some(file) = file_tree.default_file() {
-            run_terminal_watch_mode(&file.absolute_path, &args.theme);
+            run_terminal_watch_mode(&file.absolute_path, &args.theme, args.toc);
         }
     } else {
         // Normal terminal mode
         if file_tree.is_single_file() {
             if let Some(file) = file_tree.default_file() {
-                run_terminal_mode(&file.absolute_path, &args.theme, args.no_pager);
+                run_terminal_mode(&file.absolute_path, &args.theme, args.no_pager, args.toc);
             }
         } else {
             // Directory mode in terminal - list files
@@ -152,7 +152,7 @@ fn main() {
     }
 }
 
-fn run_terminal_mode(file_path: &PathBuf, theme: &str, no_pager: bool) {
+fn run_terminal_mode(file_path: &PathBuf, theme: &str, no_pager: bool, show_toc: bool) {
     let content = match std::fs::read_to_string(file_path) {
         Ok(content) => content,
         Err(e) => {
@@ -165,17 +165,17 @@ fn run_terminal_mode(file_path: &PathBuf, theme: &str, no_pager: bool) {
     let renderer = TerminalRenderer::new(theme);
 
     if no_pager || !atty::is(atty::Stream::Stdout) {
-        if let Err(e) = renderer.render(&document) {
+        if let Err(e) = renderer.render(&document, show_toc) {
             eprintln!("Error: Failed to render: {}", e);
             process::exit(1);
         }
-    } else if let Err(e) = render_with_pager(&renderer, &document) {
+    } else if let Err(e) = render_with_pager(&renderer, &document, show_toc) {
         eprintln!("Error: Failed to render: {}", e);
         process::exit(1);
     }
 }
 
-fn run_terminal_watch_mode(file_path: &PathBuf, theme: &str) {
+fn run_terminal_watch_mode(file_path: &PathBuf, theme: &str, show_toc: bool) {
     use crossterm::{
         ExecutableCommand, cursor,
         terminal::{self, ClearType},
@@ -184,7 +184,7 @@ fn run_terminal_watch_mode(file_path: &PathBuf, theme: &str) {
     let (tx, mut rx) = broadcast::channel::<()>(16);
 
     // Initial render
-    render_terminal_content(file_path, theme);
+    render_terminal_content(file_path, theme, show_toc);
 
     // Start file watcher in a separate thread
     let watch_path = file_path.clone();
@@ -203,12 +203,12 @@ fn run_terminal_watch_mode(file_path: &PathBuf, theme: &str) {
         let _ = stdout.execute(terminal::Clear(ClearType::All));
         let _ = stdout.execute(cursor::MoveTo(0, 0));
 
-        render_terminal_content(file_path, theme);
+        render_terminal_content(file_path, theme, show_toc);
         println!("\n--- Watching for changes (Press Ctrl+C to exit) ---\n");
     }
 }
 
-fn render_terminal_content(file_path: &PathBuf, theme: &str) {
+fn render_terminal_content(file_path: &PathBuf, theme: &str, show_toc: bool) {
     let content = match std::fs::read_to_string(file_path) {
         Ok(content) => content,
         Err(e) => {
@@ -220,7 +220,7 @@ fn render_terminal_content(file_path: &PathBuf, theme: &str) {
     let document = parse_markdown(&content);
     let renderer = TerminalRenderer::new(theme);
 
-    if let Err(e) = renderer.render(&document) {
+    if let Err(e) = renderer.render(&document, show_toc) {
         eprintln!("Error: Failed to render: {}", e);
     }
 }
@@ -228,10 +228,11 @@ fn render_terminal_content(file_path: &PathBuf, theme: &str) {
 fn render_with_pager(
     renderer: &TerminalRenderer,
     document: &mdp::parser::Document,
+    show_toc: bool,
 ) -> io::Result<()> {
     // Render to buffer first
     let mut buffer = Vec::new();
-    renderer.render_to_writer(&mut buffer, document)?;
+    renderer.render_to_writer(&mut buffer, document, show_toc)?;
 
     // Get pager from environment or default to less
     let pager = env::var("PAGER").unwrap_or_else(|_| "less".to_string());
