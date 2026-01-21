@@ -35,6 +35,10 @@ struct Args {
     #[arg(long)]
     toc: bool,
 
+    /// Show sidebar with related markdown files (for single file mode)
+    #[arg(short, long)]
+    sidebar: bool,
+
     /// Theme (dark or light)
     #[arg(long, default_value = "dark")]
     theme: String,
@@ -93,11 +97,22 @@ fn main() {
             );
         }
 
-        match FileTree::from_file(&args.path) {
-            Ok(tree) => tree,
-            Err(e) => {
-                eprintln!("Error: Failed to read file: {}", e);
-                process::exit(1);
+        // Use context mode if sidebar option is enabled
+        if args.sidebar {
+            match FileTree::from_file_with_context(&args.path) {
+                Ok(tree) => tree,
+                Err(e) => {
+                    eprintln!("Error: Failed to scan directory: {}", e);
+                    process::exit(1);
+                }
+            }
+        } else {
+            match FileTree::from_file(&args.path) {
+                Ok(tree) => tree,
+                Err(e) => {
+                    eprintln!("Error: Failed to read file: {}", e);
+                    process::exit(1);
+                }
             }
         }
     };
