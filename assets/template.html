@@ -9,8 +9,8 @@
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.css">
     <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.min.js"></script>
-    <script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.js"></script>
-    <script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/contrib/auto-render.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/contrib/auto-render.min.js"></script>
     <style>
         .reload-indicator {
             position: fixed;
@@ -176,28 +176,17 @@
         hljs.highlightAll();
 
         // KaTeX initialization
-        document.addEventListener('DOMContentLoaded', function() {
+        window.addEventListener('load', function() {
             if (typeof renderMathInElement !== 'undefined') {
                 renderMathInElement(document.body, {
                     delimiters: [
                         {left: '$$', right: '$$', display: true},
                         {left: '$', right: '$', display: false}
                     ],
-                    throwOnError: false,
-                    preProcess: (math) => {
-                        // Wrap display math in container
-                        return math;
-                    }
+                    throwOnError: false
                 });
-                // Add container class to display math
-                document.querySelectorAll('.katex-display').forEach(el => {
-                    if (!el.parentElement.classList.contains('math-display')) {
-                        const wrapper = document.createElement('div');
-                        wrapper.className = 'math-display';
-                        el.parentNode.insertBefore(wrapper, el);
-                        wrapper.appendChild(el);
-                    }
-                });
+            } else {
+                console.error('KaTeX auto-render not loaded');
             }
         });
 
