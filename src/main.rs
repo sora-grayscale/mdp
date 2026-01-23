@@ -47,7 +47,7 @@ struct Args {
     #[arg(long)]
     no_pager: bool,
 
-    /// Port for browser mode (default: auto-select)
+    /// Port for browser mode (default: 3000, auto-increments if busy)
     #[arg(short, long, default_value = "3000")]
     port: u16,
 }
@@ -265,12 +265,20 @@ fn render_with_pager(
     {
         Ok(mut child) => {
             if let Some(mut stdin) = child.stdin.take() {
-                stdin.write_all(&buffer)?;
+                // If write fails, fall back to direct output
+                if stdin.write_all(&buffer).is_err() {
+                    drop(stdin);
+                    let _ = child.kill();
+                    io::stdout().write_all(&buffer)?;
+                    return Ok(());
+                }
             }
-            child.wait()?;
+            // Wait for pager to finish, ignore exit status errors
+            // (user might quit pager early with 'q')
+            let _ = child.wait();
         }
         Err(_) => {
-            // Fallback to direct output if pager fails
+            // Fallback to direct output if pager fails to spawn
             io::stdout().write_all(&buffer)?;
         }
     }
