@@ -17,6 +17,7 @@ A rich Markdown previewer for the terminal and browser, written in Rust.
 - Table of contents generation (`--toc`)
 - Automatic paging with less
 - Watch mode with live reload
+- Mermaid diagram display (code view with browser hint)
 
 ### Browser Mode
 - GitHub-style rendering with CSS
@@ -30,10 +31,10 @@ A rich Markdown previewer for the terminal and browser, written in Rust.
 - Footnotes support
 - Table of contents generation (`--toc`)
 - Auto-shutdown when browser tab closes
+- Mermaid diagram rendering
 
 ### Planned Features
 - KaTeX math rendering
-- Mermaid diagram support
 - Image display (iTerm2/Kitty protocol)
 
 ## Installation
