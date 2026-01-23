@@ -6,8 +6,11 @@
     <title>{{TITLE}}</title>
     <link rel="stylesheet" href="/assets/github.css">
     <link id="hljs-theme" rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/github.min.css">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.css">
     <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.min.js"></script>
+    <script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.js"></script>
+    <script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/contrib/auto-render.min.js"></script>
     <style>
         :root {
             --sidebar-width: 260px;
@@ -387,6 +390,26 @@
             background: var(--color-canvas-default, #0d1117);
             border-color: var(--color-border-default, #30363d);
         }
+
+        /* KaTeX math styling - VSCode inspired */
+        .math-display {
+            margin: 16px 0;
+            padding: 16px 24px;
+            border-radius: 8px;
+            background: var(--color-canvas-subtle, #f6f8fa);
+            border: 1px solid var(--color-border-default, #d0d7de);
+            overflow-x: auto;
+            text-align: center;
+        }
+        .math-display:hover {
+            box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+        }
+        [data-theme="dark"] .math-display {
+            background: var(--color-canvas-subtle, #161b22);
+            border-color: var(--color-border-default, #30363d);
+        }
+        .katex { font-size: 1.1em; }
+        .katex-display { margin: 0; }
     </style>
 </head>
 <body>
@@ -477,6 +500,30 @@
         })();
 
         hljs.highlightAll();
+
+        // KaTeX initialization
+        function initKatex() {
+            if (typeof renderMathInElement !== 'undefined') {
+                const content = document.getElementById('content');
+                renderMathInElement(content, {
+                    delimiters: [
+                        {left: '$$', right: '$$', display: true},
+                        {left: '$', right: '$', display: false}
+                    ],
+                    throwOnError: false
+                });
+                // Add container class to display math
+                content.querySelectorAll('.katex-display').forEach(el => {
+                    if (!el.parentElement.classList.contains('math-display')) {
+                        const wrapper = document.createElement('div');
+                        wrapper.className = 'math-display';
+                        el.parentNode.insertBefore(wrapper, el);
+                        wrapper.appendChild(el);
+                    }
+                });
+            }
+        }
+        document.addEventListener('DOMContentLoaded', initKatex);
 
         // Mermaid initialization
         function initMermaid() {
@@ -582,9 +629,10 @@
                 // Update current file
                 currentFile = path;
 
-                // Re-highlight code blocks and render mermaid
+                // Re-highlight code blocks, render mermaid, and render math
                 hljs.highlightAll();
                 initMermaid();
+                initKatex();
             } catch (e) {
                 console.error('Failed to load file:', e);
             }
