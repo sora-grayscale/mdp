@@ -224,6 +224,34 @@ impl HtmlRenderer {
                 Event::Code(code) if in_heading => {
                     current_heading_text.push_str(code);
                 }
+                // Transform Link events to Html events with custom attributes
+                Event::Start(Tag::Link {
+                    link_type: _,
+                    dest_url,
+                    title,
+                    id: _,
+                }) => {
+                    let title_opt = if title.is_empty() {
+                        None
+                    } else {
+                        Some(title.as_ref())
+                    };
+                    let html = Self::generate_link_open_tag(dest_url.as_ref(), title_opt);
+                    let html_event = Event::Html(CowStr::Boxed(html.into_boxed_str()));
+                    if in_footnote {
+                        footnote_events.push(html_event);
+                    } else {
+                        main_events.push(html_event);
+                    }
+                }
+                Event::End(TagEnd::Link) => {
+                    let html_event = Event::Html(CowStr::Borrowed("</a>"));
+                    if in_footnote {
+                        footnote_events.push(html_event);
+                    } else {
+                        main_events.push(html_event);
+                    }
+                }
                 _ => {
                     if in_footnote {
                         footnote_events.push(event);
@@ -269,10 +297,37 @@ impl HtmlRenderer {
         }
 
         // Process mermaid code blocks
-        let html_output = self.process_mermaid(&html_output);
+        self.process_mermaid(&html_output)
+    }
 
-        // Process links
-        self.process_links(&html_output)
+    /// Generate opening <a> tag with appropriate attributes based on URL type
+    fn generate_link_open_tag(url: &str, title: Option<&str>) -> String {
+        let title_attr = title
+            .map(|t| format!(r#" title="{}""#, html_escape::encode_text(t)))
+            .unwrap_or_default();
+
+        if url.starts_with("http://") || url.starts_with("https://") {
+            // External link - open in new tab
+            format!(
+                r#"<a href="{}" target="_blank" rel="noopener noreferrer"{}>"#,
+                html_escape::encode_text(url),
+                title_attr
+            )
+        } else if url.ends_with(".md") {
+            // Local .md file - use viewer
+            format!(
+                r#"<a href="javascript:void(0)" onclick="loadFile('{}')"{}>"#,
+                html_escape::encode_text(url),
+                title_attr
+            )
+        } else {
+            // Other links (anchors, relative paths, etc.) - keep as is
+            format!(
+                r#"<a href="{}"{}>"#,
+                html_escape::encode_text(url),
+                title_attr
+            )
+        }
     }
 
     /// Process mermaid code blocks into styled containers
@@ -316,45 +371,6 @@ impl HtmlRenderer {
         }
     }
 
-    /// Process links in HTML
-    /// - Convert .md links to use the viewer
-    /// - Add target="_blank" to external links
-    fn process_links(&self, html: &str) -> String {
-        let mut result = html.to_string();
-
-        // Pattern for all href links
-        let link_pattern = regex::Regex::new(r#"<a\s+href="([^"]+)"([^>]*)>"#).ok();
-
-        if let Some(re) = link_pattern {
-            result = re
-                .replace_all(&result, |caps: &regex::Captures| {
-                    let url = &caps[1];
-                    let rest = &caps[2];
-
-                    if url.starts_with("http://") || url.starts_with("https://") {
-                        // External link - open in new tab
-                        format!(
-                            r#"<a href="{}" target="_blank" rel="noopener noreferrer"{}>"#,
-                            url, rest
-                        )
-                    } else if url.ends_with(".md") {
-                        // Local .md file - use viewer
-                        format!(
-                            r#"<a href="javascript:void(0)" onclick="loadFile('{}')"{}>"#,
-                            html_escape::encode_text(url),
-                            rest
-                        )
-                    } else {
-                        // Other links - keep as is
-                        format!(r#"<a href="{}"{}>"#, url, rest)
-                    }
-                })
-                .to_string();
-        }
-
-        result
-    }
-
     /// Get CSS content for serving
     pub fn get_css() -> &'static str {
         CSS
@@ -386,6 +402,24 @@ mod tests {
         let renderer = HtmlRenderer::new("Test");
         let result = renderer.render("[Guide](./guide.md)");
         assert!(result.contains(r#"onclick="loadFile"#));
+    }
+
+    #[test]
+    fn test_link_with_title() {
+        let renderer = HtmlRenderer::new("Test");
+        let result = renderer.render(r#"[Example](https://example.com "Example Site")"#);
+        assert!(result.contains(r#"title="Example Site""#));
+        assert!(result.contains(r#"target="_blank""#));
+    }
+
+    #[test]
+    fn test_anchor_links() {
+        let renderer = HtmlRenderer::new("Test");
+        let result = renderer.render("[Section](#section)");
+        // Anchor links should be kept as-is (no target="_blank", no onclick)
+        assert!(result.contains("href=\"#section\""));
+        assert!(!result.contains("target=\"_blank\""));
+        assert!(!result.contains("onclick"));
     }
 
     #[test]
