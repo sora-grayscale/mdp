@@ -252,6 +252,13 @@ impl TerminalRenderer {
             Element::FootnoteDefinition { label, content } => {
                 self.render_footnote_definition(out, label, content)?;
             }
+            Element::Html(html) => {
+                // Display raw HTML in grey (terminal can't render HTML)
+                execute!(out, SetForegroundColor(Color::DarkGrey))?;
+                writeln!(out, "{}", html)?;
+                execute!(out, ResetColor)?;
+                writeln!(out)?; // Add blank line after HTML block for consistency
+            }
         }
         Ok(())
     }
@@ -403,6 +410,42 @@ impl TerminalRenderer {
                 write!(out, "[^{}]", label)?;
                 // Restore parent style
                 style.apply_diff(&footnote_style, out)?;
+            }
+            InlineElement::TaskListMarker(checked) => {
+                let marker_style = StyleState {
+                    color: Some(if *checked {
+                        Color::Green
+                    } else {
+                        Color::DarkGrey
+                    }),
+                    ..style.clone()
+                };
+                marker_style.apply_diff(style, out)?;
+                write!(out, "{} ", if *checked { "☑" } else { "☐" })?;
+                // Restore parent style
+                style.apply_diff(&marker_style, out)?;
+            }
+            InlineElement::InlineHtml(html) => {
+                // Display inline HTML as-is in grey (terminal can't render HTML)
+                let html_style = StyleState {
+                    color: Some(Color::DarkGrey),
+                    ..style.clone()
+                };
+                html_style.apply_diff(style, out)?;
+                write!(out, "{}", html)?;
+                style.apply_diff(&html_style, out)?;
+            }
+            InlineElement::Image { url, alt, .. } => {
+                // Display image as [alt](url) with image icon
+                // Fallback to "Image" if alt is empty
+                let display_alt = if alt.is_empty() { "Image" } else { alt };
+                let img_style = StyleState {
+                    color: Some(Color::Magenta),
+                    ..style.clone()
+                };
+                img_style.apply_diff(style, out)?;
+                write!(out, "🖼 [{}]({})", display_alt, url)?;
+                style.apply_diff(&img_style, out)?;
             }
             InlineElement::SoftBreak | InlineElement::HardBreak => {
                 writeln!(out)?;
