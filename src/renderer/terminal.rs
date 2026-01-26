@@ -505,20 +505,26 @@ impl TerminalRenderer {
                 }
             };
 
+            // Calculate content indent (indent + bullet width) for continuation lines
+            let bullet_width = bullet.chars().count();
+            let content_indent = " ".repeat(indent + bullet_width);
+
             // Render bullet for the first content element
             let mut first_element = true;
 
             for element in &item.content {
-                if first_element {
-                    execute!(out, SetForegroundColor(Color::Cyan))?;
-                    write!(out, "{}{}", indent_str, bullet)?;
-                    execute!(out, ResetColor)?;
-                    first_element = false;
-                }
-
                 match element {
                     Element::Paragraph { content } => {
-                        // Render paragraph inline content on the same line as bullet
+                        if first_element {
+                            // First paragraph: print bullet then content on same line
+                            execute!(out, SetForegroundColor(Color::Cyan))?;
+                            write!(out, "{}{}", indent_str, bullet)?;
+                            execute!(out, ResetColor)?;
+                            first_element = false;
+                        } else {
+                            // Subsequent paragraphs: indent to align with first paragraph
+                            write!(out, "{}", content_indent)?;
+                        }
                         let style = StyleState::default();
                         for inline in content {
                             self.render_inline(out, inline, &style)?;
@@ -530,9 +536,14 @@ impl TerminalRenderer {
                         start: nested_start,
                         items: nested_items,
                     } => {
-                        // Nested list: render with increased indent
-                        if !first_element {
-                            // If not first, we need newline before nested list
+                        // Nested list: always needs newline before it
+                        if first_element {
+                            // Print bullet with newline, then nested list
+                            execute!(out, SetForegroundColor(Color::Cyan))?;
+                            write!(out, "{}{}", indent_str, bullet)?;
+                            execute!(out, ResetColor)?;
+                            writeln!(out)?;
+                            first_element = false;
                         }
                         self.render_list(
                             out,
@@ -544,8 +555,14 @@ impl TerminalRenderer {
                     }
                     _ => {
                         // Other block elements (CodeBlock, BlockQuote, etc.)
+                        if first_element {
+                            execute!(out, SetForegroundColor(Color::Cyan))?;
+                            write!(out, "{}{}", indent_str, bullet)?;
+                            execute!(out, ResetColor)?;
+                            writeln!(out)?;
+                            first_element = false;
+                        }
                         // Render with additional indent for visual nesting
-                        writeln!(out)?;
                         self.render_element(out, element, indent + 2)?;
                     }
                 }

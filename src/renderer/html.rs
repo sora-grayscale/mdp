@@ -225,12 +225,13 @@ impl HtmlRenderer {
                     current_heading_text.push_str(code);
                 }
                 // Transform Link events to Html events with custom attributes
+                // Skip link tags inside headings - only the text content matters for headings
                 Event::Start(Tag::Link {
                     link_type: _,
                     dest_url,
                     title,
                     id: _,
-                }) => {
+                }) if !in_heading => {
                     let title_opt = if title.is_empty() {
                         None
                     } else {
@@ -244,7 +245,7 @@ impl HtmlRenderer {
                         main_events.push(html_event);
                     }
                 }
-                Event::End(TagEnd::Link) => {
+                Event::End(TagEnd::Link) if !in_heading => {
                     let html_event = Event::Html(CowStr::Borrowed("</a>"));
                     if in_footnote {
                         footnote_events.push(html_event);
@@ -252,6 +253,9 @@ impl HtmlRenderer {
                         main_events.push(html_event);
                     }
                 }
+                // Links inside headings: skip the tag, text is captured separately
+                Event::Start(Tag::Link { .. }) if in_heading => {}
+                Event::End(TagEnd::Link) if in_heading => {}
                 _ => {
                     if in_footnote {
                         footnote_events.push(event);
@@ -395,6 +399,18 @@ mod tests {
         let result = renderer.render("[Google](https://google.com)");
         assert!(result.contains(r#"target="_blank""#));
         assert!(result.contains(r#"rel="noopener noreferrer""#));
+    }
+
+    #[test]
+    fn test_heading_with_link() {
+        let renderer = HtmlRenderer::new("Test");
+        let result = renderer.render("# Heading with [Link](https://example.com)");
+        // Heading should be properly formed with id
+        assert!(result.contains("<h1 id=\"heading-with-link\">"));
+        // Link should NOT appear inside heading (links in headings are stripped to text only)
+        assert!(!result.contains("<h1 id=\"heading-with-link\"><a"));
+        // The closing tag should be correct
+        assert!(result.contains("</h1>"));
     }
 
     #[test]
