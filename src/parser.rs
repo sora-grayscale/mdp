@@ -55,12 +55,12 @@ pub struct ListItem {
 pub enum InlineElement {
     Text(String),
     Code(String),
-    Strong(String),
-    Emphasis(String),
-    Strikethrough(String),
+    Strong(Vec<InlineElement>),
+    Emphasis(Vec<InlineElement>),
+    Strikethrough(Vec<InlineElement>),
     Link {
         url: String,
-        text: String,
+        content: Vec<InlineElement>,
         title: Option<String>,
     },
     FootnoteReference(String),
@@ -194,6 +194,104 @@ pub fn parse_markdown(input: &str) -> Document {
     Document { elements }
 }
 
+/// Parse inline elements recursively, handling nested structures like **[link](url)**
+fn parse_inline_elements(
+    events: &[Event],
+    start: usize,
+    end_tag: Option<TagEnd>,
+) -> (Vec<InlineElement>, usize) {
+    let mut elements = Vec::new();
+    let mut index = start;
+
+    while index < events.len() {
+        // Check if we hit our end tag
+        if let Some(ref end) = end_tag {
+            if let Event::End(tag_end) = &events[index] {
+                if std::mem::discriminant(tag_end) == std::mem::discriminant(end) {
+                    return (elements, index);
+                }
+            }
+        }
+
+        match &events[index] {
+            // End tags for block-level elements
+            Event::End(TagEnd::Paragraph)
+            | Event::End(TagEnd::Item)
+            | Event::End(TagEnd::BlockQuote)
+            | Event::End(TagEnd::FootnoteDefinition) => {
+                return (elements, index);
+            }
+
+            Event::Text(text) => {
+                elements.push(InlineElement::Text(text.to_string()));
+            }
+
+            Event::Code(code) => {
+                elements.push(InlineElement::Code(code.to_string()));
+            }
+
+            Event::Start(Tag::Strong) => {
+                let (content, new_index) =
+                    parse_inline_elements(events, index + 1, Some(TagEnd::Strong));
+                elements.push(InlineElement::Strong(content));
+                index = new_index;
+            }
+
+            Event::Start(Tag::Emphasis) => {
+                let (content, new_index) =
+                    parse_inline_elements(events, index + 1, Some(TagEnd::Emphasis));
+                elements.push(InlineElement::Emphasis(content));
+                index = new_index;
+            }
+
+            Event::Start(Tag::Strikethrough) => {
+                let (content, new_index) =
+                    parse_inline_elements(events, index + 1, Some(TagEnd::Strikethrough));
+                elements.push(InlineElement::Strikethrough(content));
+                index = new_index;
+            }
+
+            Event::Start(Tag::Link {
+                dest_url, title, ..
+            }) => {
+                let url = dest_url.to_string();
+                let title = if title.is_empty() {
+                    None
+                } else {
+                    Some(title.to_string())
+                };
+                let (content, new_index) =
+                    parse_inline_elements(events, index + 1, Some(TagEnd::Link));
+                elements.push(InlineElement::Link {
+                    url,
+                    content,
+                    title,
+                });
+                index = new_index;
+            }
+
+            Event::FootnoteReference(label) => {
+                elements.push(InlineElement::FootnoteReference(label.to_string()));
+            }
+
+            Event::SoftBreak => {
+                elements.push(InlineElement::SoftBreak);
+            }
+
+            Event::HardBreak => {
+                elements.push(InlineElement::HardBreak);
+            }
+
+            // Skip other events (nested block elements are handled by parse_element)
+            _ => {}
+        }
+
+        index += 1;
+    }
+
+    (elements, index)
+}
+
 fn parse_element(events: &[Event], start: usize) -> (Option<Element>, usize) {
     if start >= events.len() {
         return (None, start + 1);
@@ -222,102 +320,13 @@ fn parse_element(events: &[Event], start: usize) -> (Option<Element>, usize) {
         }
 
         Event::Start(Tag::Paragraph) => {
-            let mut inline_elements = Vec::new();
-            let mut index = start + 1;
-
-            while index < events.len() {
-                match &events[index] {
-                    Event::End(TagEnd::Paragraph) => {
-                        break;
-                    }
-                    Event::Text(text) => {
-                        inline_elements.push(InlineElement::Text(text.to_string()));
-                    }
-                    Event::Code(code) => {
-                        inline_elements.push(InlineElement::Code(code.to_string()));
-                    }
-                    Event::Start(Tag::Strong) => {
-                        let mut text = String::new();
-                        index += 1;
-                        while index < events.len() {
-                            match &events[index] {
-                                Event::End(TagEnd::Strong) => break,
-                                Event::Text(t) => text.push_str(t),
-                                _ => {}
-                            }
-                            index += 1;
-                        }
-                        inline_elements.push(InlineElement::Strong(text));
-                    }
-                    Event::Start(Tag::Emphasis) => {
-                        let mut text = String::new();
-                        index += 1;
-                        while index < events.len() {
-                            match &events[index] {
-                                Event::End(TagEnd::Emphasis) => break,
-                                Event::Text(t) => text.push_str(t),
-                                _ => {}
-                            }
-                            index += 1;
-                        }
-                        inline_elements.push(InlineElement::Emphasis(text));
-                    }
-                    Event::Start(Tag::Strikethrough) => {
-                        let mut text = String::new();
-                        index += 1;
-                        while index < events.len() {
-                            match &events[index] {
-                                Event::End(TagEnd::Strikethrough) => break,
-                                Event::Text(t) => text.push_str(t),
-                                _ => {}
-                            }
-                            index += 1;
-                        }
-                        inline_elements.push(InlineElement::Strikethrough(text));
-                    }
-                    Event::Start(Tag::Link {
-                        link_type: _,
-                        dest_url,
-                        title,
-                        id: _,
-                    }) => {
-                        let url = dest_url.to_string();
-                        let title = if title.is_empty() {
-                            None
-                        } else {
-                            Some(title.to_string())
-                        };
-                        let mut text = String::new();
-                        index += 1;
-                        while index < events.len() {
-                            match &events[index] {
-                                Event::End(TagEnd::Link) => break,
-                                Event::Text(t) => text.push_str(t),
-                                _ => {}
-                            }
-                            index += 1;
-                        }
-                        inline_elements.push(InlineElement::Link { url, text, title });
-                    }
-                    Event::FootnoteReference(label) => {
-                        inline_elements.push(InlineElement::FootnoteReference(label.to_string()));
-                    }
-                    Event::SoftBreak => {
-                        inline_elements.push(InlineElement::SoftBreak);
-                    }
-                    Event::HardBreak => {
-                        inline_elements.push(InlineElement::HardBreak);
-                    }
-                    _ => {}
-                }
-                index += 1;
-            }
-
+            let (inline_elements, end_index) =
+                parse_inline_elements(events, start + 1, Some(TagEnd::Paragraph));
             (
                 Some(Element::Paragraph {
                     content: inline_elements,
                 }),
-                index + 1,
+                end_index + 1,
             )
         }
 
@@ -368,74 +377,41 @@ fn parse_element(events: &[Event], start: usize) -> (Option<Element>, usize) {
                         let mut sub_list = None;
                         index += 1;
 
+                        // Parse inline elements until we hit a nested list or end of item
                         while index < events.len() {
                             match &events[index] {
                                 Event::End(TagEnd::Item) => {
                                     break;
                                 }
-                                Event::Text(text) => {
-                                    item_content.push(InlineElement::Text(text.to_string()));
-                                }
-                                Event::Code(code) => {
-                                    item_content.push(InlineElement::Code(code.to_string()));
-                                }
                                 Event::Start(Tag::List(_)) => {
+                                    // Handle nested list
                                     let (nested, new_index) = parse_element(events, index);
                                     if let Some(list) = nested {
                                         sub_list = Some(Box::new(list));
                                     }
-                                    index = new_index - 1;
+                                    index = new_index;
+                                    continue;
                                 }
-                                Event::Start(Tag::Strong) => {
-                                    let mut text = String::new();
-                                    index += 1;
-                                    while index < events.len() {
-                                        match &events[index] {
-                                            Event::End(TagEnd::Strong) => break,
-                                            Event::Text(t) => text.push_str(t),
-                                            _ => {}
-                                        }
-                                        index += 1;
-                                    }
-                                    item_content.push(InlineElement::Strong(text));
+                                Event::Start(Tag::Paragraph) => {
+                                    // List items may contain paragraphs
+                                    let (content, new_index) = parse_inline_elements(
+                                        events,
+                                        index + 1,
+                                        Some(TagEnd::Paragraph),
+                                    );
+                                    item_content.extend(content);
+                                    index = new_index + 1;
+                                    continue;
                                 }
-                                Event::Start(Tag::Emphasis) => {
-                                    let mut text = String::new();
-                                    index += 1;
-                                    while index < events.len() {
-                                        match &events[index] {
-                                            Event::End(TagEnd::Emphasis) => break,
-                                            Event::Text(t) => text.push_str(t),
-                                            _ => {}
-                                        }
-                                        index += 1;
-                                    }
-                                    item_content.push(InlineElement::Emphasis(text));
+                                _ => {
+                                    // Parse other inline elements
+                                    let (content, new_index) =
+                                        parse_inline_elements(events, index, Some(TagEnd::Item));
+                                    item_content.extend(content);
+                                    index = new_index;
+                                    continue;
                                 }
-                                Event::Start(Tag::Link {
-                                    dest_url, title, ..
-                                }) => {
-                                    let url = dest_url.to_string();
-                                    let title = if title.is_empty() {
-                                        None
-                                    } else {
-                                        Some(title.to_string())
-                                    };
-                                    let mut text = String::new();
-                                    index += 1;
-                                    while index < events.len() {
-                                        match &events[index] {
-                                            Event::End(TagEnd::Link) => break,
-                                            Event::Text(t) => text.push_str(t),
-                                            _ => {}
-                                        }
-                                        index += 1;
-                                    }
-                                    item_content.push(InlineElement::Link { url, text, title });
-                                }
-                                _ => {}
                             }
-                            index += 1;
                         }
 
                         items.push(ListItem {
@@ -672,5 +648,75 @@ mod tests {
         assert_eq!(anchor_gen.generate("Hello"), "hello-2");
         assert_eq!(anchor_gen.generate("World"), "world");
         assert_eq!(anchor_gen.generate("Hello"), "hello-3");
+    }
+
+    #[test]
+    fn test_nested_strong_emphasis() {
+        let input = "This is **bold with _italic_ inside** text.";
+        let doc = parse_markdown(input);
+
+        if let Element::Paragraph { content } = &doc.elements[0] {
+            // Should have: Text, Strong(with nested Emphasis), Text
+            let has_nested = content.iter().any(|el| {
+                if let InlineElement::Strong(inner) = el {
+                    inner
+                        .iter()
+                        .any(|i| matches!(i, InlineElement::Emphasis(_)))
+                } else {
+                    false
+                }
+            });
+            assert!(has_nested, "Should have Strong containing Emphasis");
+        } else {
+            panic!("First element should be a paragraph");
+        }
+    }
+
+    #[test]
+    fn test_link_with_nested_elements() {
+        let input = "Check out [**bold link**](https://example.com)!";
+        let doc = parse_markdown(input);
+
+        if let Element::Paragraph { content } = &doc.elements[0] {
+            let has_bold_link = content.iter().any(|el| {
+                if let InlineElement::Link { content, url, .. } = el {
+                    url == "https://example.com"
+                        && content
+                            .iter()
+                            .any(|i| matches!(i, InlineElement::Strong(_)))
+                } else {
+                    false
+                }
+            });
+            assert!(has_bold_link, "Should have Link containing Strong");
+        } else {
+            panic!("First element should be a paragraph");
+        }
+    }
+
+    #[test]
+    fn test_list_with_nested_inline() {
+        let input = "- Item with **bold** text\n- Another _italic_ item";
+        let doc = parse_markdown(input);
+
+        if let Element::List { items, .. } = &doc.elements[0] {
+            assert_eq!(items.len(), 2);
+
+            // First item should have Strong
+            let first_has_strong = items[0]
+                .content
+                .iter()
+                .any(|el| matches!(el, InlineElement::Strong(_)));
+            assert!(first_has_strong, "First item should have Strong");
+
+            // Second item should have Emphasis
+            let second_has_emphasis = items[1]
+                .content
+                .iter()
+                .any(|el| matches!(el, InlineElement::Emphasis(_)));
+            assert!(second_has_emphasis, "Second item should have Emphasis");
+        } else {
+            panic!("First element should be a list");
+        }
     }
 }

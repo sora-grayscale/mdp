@@ -223,6 +223,7 @@ impl TerminalRenderer {
         Ok(())
     }
 
+    #[allow(clippy::only_used_in_recursion)]
     fn render_inline<W: Write>(&self, out: &mut W, inline: &InlineElement) -> io::Result<()> {
         match inline {
             InlineElement::Text(text) => {
@@ -233,28 +234,36 @@ impl TerminalRenderer {
                 write!(out, "`{}`", code)?;
                 execute!(out, ResetColor)?;
             }
-            InlineElement::Strong(text) => {
+            InlineElement::Strong(content) => {
                 execute!(out, SetAttribute(Attribute::Bold))?;
-                write!(out, "{}", text)?;
+                for child in content {
+                    self.render_inline(out, child)?;
+                }
                 execute!(out, SetAttribute(Attribute::Reset))?;
             }
-            InlineElement::Emphasis(text) => {
+            InlineElement::Emphasis(content) => {
                 execute!(out, SetAttribute(Attribute::Italic))?;
-                write!(out, "{}", text)?;
+                for child in content {
+                    self.render_inline(out, child)?;
+                }
                 execute!(out, SetAttribute(Attribute::Reset))?;
             }
-            InlineElement::Strikethrough(text) => {
+            InlineElement::Strikethrough(content) => {
                 execute!(out, SetAttribute(Attribute::CrossedOut))?;
-                write!(out, "{}", text)?;
+                for child in content {
+                    self.render_inline(out, child)?;
+                }
                 execute!(out, SetAttribute(Attribute::Reset))?;
             }
-            InlineElement::Link { url, text, .. } => {
+            InlineElement::Link { url, content, .. } => {
                 execute!(
                     out,
                     SetForegroundColor(Color::Blue),
                     SetAttribute(Attribute::Underlined)
                 )?;
-                write!(out, "{}", text)?;
+                for child in content {
+                    self.render_inline(out, child)?;
+                }
                 execute!(out, ResetColor, SetAttribute(Attribute::Reset))?;
                 execute!(out, SetForegroundColor(Color::DarkGrey))?;
                 write!(out, " ({})", url)?;
