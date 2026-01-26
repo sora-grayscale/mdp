@@ -43,6 +43,8 @@ pub enum Element {
         label: String,
         content: Vec<Element>,
     },
+    /// Raw HTML block
+    Html(String),
 }
 
 /// A list item containing zero or more block elements
@@ -64,7 +66,16 @@ pub enum InlineElement {
         content: Vec<InlineElement>,
         title: Option<String>,
     },
+    Image {
+        url: String,
+        alt: String,
+        title: Option<String>,
+    },
     FootnoteReference(String),
+    /// Task list checkbox (true = checked)
+    TaskListMarker(bool),
+    /// Inline HTML (e.g., <br>, <span>)
+    InlineHtml(String),
     SoftBreak,
     HardBreak,
 }
@@ -310,6 +321,44 @@ fn parse_inline_elements(
                 elements.push(InlineElement::HardBreak);
             }
 
+            Event::TaskListMarker(checked) => {
+                elements.push(InlineElement::TaskListMarker(*checked));
+            }
+
+            Event::InlineHtml(html) => {
+                elements.push(InlineElement::InlineHtml(html.to_string()));
+            }
+
+            Event::Start(Tag::Image {
+                link_type: _,
+                dest_url,
+                title,
+                id: _,
+            }) => {
+                let url = dest_url.to_string();
+                let title = if title.is_empty() {
+                    None
+                } else {
+                    Some(title.to_string())
+                };
+                // Collect alt text from events until End(Image)
+                let mut alt = String::new();
+                index += 1;
+                while index < events.len() {
+                    match &events[index] {
+                        Event::End(TagEnd::Image) => {
+                            break;
+                        }
+                        Event::Text(text) => {
+                            alt.push_str(text);
+                        }
+                        _ => {}
+                    }
+                    index += 1;
+                }
+                elements.push(InlineElement::Image { url, alt, title });
+            }
+
             // Skip other events (nested block elements are handled by parse_element)
             _ => {}
         }
@@ -427,6 +476,7 @@ fn parse_element(events: &[Event], start: usize) -> (Option<Element>, usize) {
                                 // Wrap in a paragraph for consistency
                                 Event::Text(_)
                                 | Event::Code(_)
+                                | Event::TaskListMarker(_)
                                 | Event::Start(Tag::Strong)
                                 | Event::Start(Tag::Emphasis)
                                 | Event::Start(Tag::Strikethrough)
@@ -610,6 +660,8 @@ fn parse_element(events: &[Event], start: usize) -> (Option<Element>, usize) {
             )
         }
 
+        Event::Html(html) => (Some(Element::Html(html.to_string())), start + 1),
+
         _ => (None, start + 1),
     }
 }
@@ -750,8 +802,9 @@ mod tests {
             }
 
             // First item should have Strong
-            let first_has_strong =
-                paragraph_contains(&items[0].content, |el| matches!(el, InlineElement::Strong(_)));
+            let first_has_strong = paragraph_contains(&items[0].content, |el| {
+                matches!(el, InlineElement::Strong(_))
+            });
             assert!(first_has_strong, "First item should have Strong");
 
             // Second item should have Emphasis
@@ -779,5 +832,91 @@ mod tests {
         } else {
             panic!("First element should be a list");
         }
+    }
+
+    #[test]
+    fn test_task_list() {
+        let input = "- [ ] Unchecked\n- [x] Checked";
+        let doc = parse_markdown(input);
+
+        if let Element::List { items, .. } = &doc.elements[0] {
+            assert_eq!(items.len(), 2);
+
+            // Helper to find TaskListMarker in item content
+            fn find_task_marker(elements: &[Element]) -> Option<bool> {
+                for el in elements {
+                    if let Element::Paragraph { content } = el {
+                        for inline in content {
+                            if let InlineElement::TaskListMarker(checked) = inline {
+                                return Some(*checked);
+                            }
+                        }
+                    }
+                }
+                None
+            }
+
+            // First item should have unchecked marker
+            assert_eq!(
+                find_task_marker(&items[0].content),
+                Some(false),
+                "First item should have unchecked marker"
+            );
+
+            // Second item should have checked marker
+            assert_eq!(
+                find_task_marker(&items[1].content),
+                Some(true),
+                "Second item should have checked marker"
+            );
+        } else {
+            panic!("First element should be a list");
+        }
+    }
+
+    #[test]
+    fn test_inline_image() {
+        let input = "Here is ![alt text](https://example.com/img.png \"title\") inline.";
+        let doc = parse_markdown(input);
+
+        if let Element::Paragraph { content } = &doc.elements[0] {
+            let has_image = content.iter().any(|el| {
+                matches!(
+                    el,
+                    InlineElement::Image {
+                        url,
+                        alt,
+                        title: Some(_)
+                    } if url == "https://example.com/img.png" && alt == "alt text"
+                )
+            });
+            assert!(has_image, "Should have inline image");
+        } else {
+            panic!("First element should be a paragraph");
+        }
+    }
+
+    #[test]
+    fn test_inline_html() {
+        let input = "Text with <br> and <span>content</span>.";
+        let doc = parse_markdown(input);
+
+        if let Element::Paragraph { content } = &doc.elements[0] {
+            let has_inline_html = content
+                .iter()
+                .any(|el| matches!(el, InlineElement::InlineHtml(_)));
+            assert!(has_inline_html, "Should have inline HTML");
+        } else {
+            panic!("First element should be a paragraph");
+        }
+    }
+
+    #[test]
+    fn test_html_block() {
+        let input = "<div>\n  <p>HTML block</p>\n</div>";
+        let doc = parse_markdown(input);
+
+        let has_html_block = doc.elements.iter().any(|el| matches!(el, Element::Html(_)));
+        assert!(has_html_block, "Should have HTML block element");
     }
 }
