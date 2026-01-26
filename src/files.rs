@@ -151,7 +151,18 @@ impl FileTree {
 
     /// Find a file by its relative path
     /// Normalizes the path to handle cases like "./a.md" vs "a.md"
+    /// Rejects paths containing ".." segments for security (path traversal prevention)
     pub fn find_file(&self, relative_path: &str) -> Option<&MarkdownFile> {
+        // Security: reject paths with ".." as a path segment to prevent directory traversal
+        // Check both / and \ as separators, also check start/end of string
+        let normalized_for_check = relative_path.replace('\\', "/");
+        let has_parent_ref = normalized_for_check
+            .split('/')
+            .any(|segment| segment == "..");
+        if has_parent_ref {
+            return None;
+        }
+
         // Normalize input path: strip leading "./" and normalize separators
         let normalized_input = relative_path
             .trim_start_matches("./")

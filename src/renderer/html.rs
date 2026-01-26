@@ -387,4 +387,40 @@ mod tests {
         let result = renderer.render("[Guide](./guide.md)");
         assert!(result.contains(r#"onclick="loadFile"#));
     }
+
+    #[test]
+    fn test_mermaid_special_characters() {
+        let renderer = HtmlRenderer::new("Test");
+        // Test mermaid with special characters that need HTML encoding
+        let input = r#"```mermaid
+graph TD
+    A[Start] --> B{Decision}
+    B -->|Yes| C[End]
+```"#;
+        let result = renderer.render(input);
+        // Should contain mermaid container
+        assert!(result.contains("mermaid-container"));
+        // Arrow should be preserved (encoded as &gt; for HTML safety)
+        assert!(result.contains("--&gt;"));
+    }
+
+    #[test]
+    fn test_mermaid_ampersand() {
+        let renderer = HtmlRenderer::new("Test");
+        let input = r#"```mermaid
+graph TD
+    A[Tom & Jerry]
+```"#;
+        let result = renderer.render(input);
+        // Ampersand must be encoded as &amp; for HTML safety
+        assert!(
+            result.contains("Tom &amp; Jerry"),
+            "Mermaid content should have & encoded as &amp; for HTML safety"
+        );
+        // Should not contain unencoded ampersand in the mermaid block
+        assert!(
+            !result.contains("<pre class=\"mermaid\">") || !result.contains("Tom & Jerry</pre>"),
+            "Raw & should not appear in mermaid output"
+        );
+    }
 }

@@ -11,6 +11,88 @@ use crate::parser::{
     Alignment, Document, Element, InlineElement, ListItem, TocEntry, generate_toc,
 };
 
+/// Tracks the current text style state for proper nesting
+#[derive(Clone, Default, PartialEq)]
+struct StyleState {
+    bold: bool,
+    italic: bool,
+    strikethrough: bool,
+    underline: bool,
+    color: Option<Color>,
+}
+
+impl StyleState {
+    /// Apply this style from a clean state (used at the start of rendering)
+    fn apply_fresh<W: Write>(&self, out: &mut W) -> io::Result<()> {
+        if self.bold {
+            execute!(out, SetAttribute(Attribute::Bold))?;
+        }
+        if self.italic {
+            execute!(out, SetAttribute(Attribute::Italic))?;
+        }
+        if self.strikethrough {
+            execute!(out, SetAttribute(Attribute::CrossedOut))?;
+        }
+        if self.underline {
+            execute!(out, SetAttribute(Attribute::Underlined))?;
+        }
+        if let Some(color) = self.color {
+            execute!(out, SetForegroundColor(color))?;
+        }
+        Ok(())
+    }
+
+    /// Apply differential changes from another style state (avoids full reset)
+    fn apply_diff<W: Write>(&self, from: &StyleState, out: &mut W) -> io::Result<()> {
+        // Handle bold
+        if self.bold != from.bold {
+            if self.bold {
+                execute!(out, SetAttribute(Attribute::Bold))?;
+            } else {
+                execute!(out, SetAttribute(Attribute::NoBold))?;
+            }
+        }
+
+        // Handle italic
+        if self.italic != from.italic {
+            if self.italic {
+                execute!(out, SetAttribute(Attribute::Italic))?;
+            } else {
+                execute!(out, SetAttribute(Attribute::NoItalic))?;
+            }
+        }
+
+        // Handle strikethrough
+        if self.strikethrough != from.strikethrough {
+            if self.strikethrough {
+                execute!(out, SetAttribute(Attribute::CrossedOut))?;
+            } else {
+                execute!(out, SetAttribute(Attribute::NotCrossedOut))?;
+            }
+        }
+
+        // Handle underline
+        if self.underline != from.underline {
+            if self.underline {
+                execute!(out, SetAttribute(Attribute::Underlined))?;
+            } else {
+                execute!(out, SetAttribute(Attribute::NoUnderline))?;
+            }
+        }
+
+        // Handle color
+        if self.color != from.color {
+            if let Some(color) = self.color {
+                execute!(out, SetForegroundColor(color))?;
+            } else {
+                execute!(out, ResetColor)?;
+            }
+        }
+
+        Ok(())
+    }
+}
+
 pub struct TerminalRenderer {
     theme: String,
     syntax_set: SyntaxSet,
@@ -214,8 +296,9 @@ impl TerminalRenderer {
         let indent_str = " ".repeat(indent);
         write!(out, "{}", indent_str)?;
 
+        let style = StyleState::default();
         for inline in content {
-            self.render_inline(out, inline)?;
+            self.render_inline(out, inline, &style)?;
         }
 
         writeln!(out)?;
@@ -224,55 +307,92 @@ impl TerminalRenderer {
     }
 
     #[allow(clippy::only_used_in_recursion)]
-    fn render_inline<W: Write>(&self, out: &mut W, inline: &InlineElement) -> io::Result<()> {
+    fn render_inline<W: Write>(
+        &self,
+        out: &mut W,
+        inline: &InlineElement,
+        style: &StyleState,
+    ) -> io::Result<()> {
         match inline {
             InlineElement::Text(text) => {
                 write!(out, "{}", text)?;
             }
             InlineElement::Code(code) => {
-                execute!(out, SetForegroundColor(Color::Yellow))?;
+                // Code has its own color, temporarily override
+                let code_style = StyleState {
+                    color: Some(Color::Yellow),
+                    ..style.clone()
+                };
+                code_style.apply_diff(style, out)?;
                 write!(out, "`{}`", code)?;
-                execute!(out, ResetColor)?;
+                // Restore parent style (only color changed)
+                style.apply_diff(&code_style, out)?;
             }
             InlineElement::Strong(content) => {
-                execute!(out, SetAttribute(Attribute::Bold))?;
+                let child_style = StyleState {
+                    bold: true,
+                    ..style.clone()
+                };
+                child_style.apply_diff(style, out)?;
                 for child in content {
-                    self.render_inline(out, child)?;
+                    self.render_inline(out, child, &child_style)?;
                 }
-                execute!(out, SetAttribute(Attribute::Reset))?;
+                // Restore parent style
+                style.apply_diff(&child_style, out)?;
             }
             InlineElement::Emphasis(content) => {
-                execute!(out, SetAttribute(Attribute::Italic))?;
+                let child_style = StyleState {
+                    italic: true,
+                    ..style.clone()
+                };
+                child_style.apply_diff(style, out)?;
                 for child in content {
-                    self.render_inline(out, child)?;
+                    self.render_inline(out, child, &child_style)?;
                 }
-                execute!(out, SetAttribute(Attribute::Reset))?;
+                // Restore parent style
+                style.apply_diff(&child_style, out)?;
             }
             InlineElement::Strikethrough(content) => {
-                execute!(out, SetAttribute(Attribute::CrossedOut))?;
+                let child_style = StyleState {
+                    strikethrough: true,
+                    ..style.clone()
+                };
+                child_style.apply_diff(style, out)?;
                 for child in content {
-                    self.render_inline(out, child)?;
+                    self.render_inline(out, child, &child_style)?;
                 }
-                execute!(out, SetAttribute(Attribute::Reset))?;
+                // Restore parent style
+                style.apply_diff(&child_style, out)?;
             }
             InlineElement::Link { url, content, .. } => {
-                execute!(
-                    out,
-                    SetForegroundColor(Color::Blue),
-                    SetAttribute(Attribute::Underlined)
-                )?;
+                let child_style = StyleState {
+                    underline: true,
+                    color: Some(Color::Blue),
+                    ..style.clone()
+                };
+                child_style.apply_diff(style, out)?;
                 for child in content {
-                    self.render_inline(out, child)?;
+                    self.render_inline(out, child, &child_style)?;
                 }
-                execute!(out, ResetColor, SetAttribute(Attribute::Reset))?;
-                execute!(out, SetForegroundColor(Color::DarkGrey))?;
+                // URL suffix in grey (temporary style, no underline)
+                let url_style = StyleState {
+                    color: Some(Color::DarkGrey),
+                    ..StyleState::default()
+                };
+                url_style.apply_diff(&child_style, out)?;
                 write!(out, " ({})", url)?;
-                execute!(out, ResetColor)?;
+                // Restore parent style
+                style.apply_diff(&url_style, out)?;
             }
             InlineElement::FootnoteReference(label) => {
-                execute!(out, SetForegroundColor(Color::Cyan))?;
+                let footnote_style = StyleState {
+                    color: Some(Color::Cyan),
+                    ..style.clone()
+                };
+                footnote_style.apply_diff(style, out)?;
                 write!(out, "[^{}]", label)?;
-                execute!(out, ResetColor)?;
+                // Restore parent style
+                style.apply_diff(&footnote_style, out)?;
             }
             InlineElement::SoftBreak | InlineElement::HardBreak => {
                 writeln!(out)?;
@@ -379,8 +499,9 @@ impl TerminalRenderer {
             write!(out, "{}{}", indent_str, bullet)?;
             execute!(out, ResetColor)?;
 
+            let style = StyleState::default();
             for inline in &item.content {
-                self.render_inline(out, inline)?;
+                self.render_inline(out, inline, &style)?;
             }
             writeln!(out)?;
 
@@ -520,38 +641,40 @@ impl TerminalRenderer {
     }
 
     fn render_blockquote<W: Write>(&self, out: &mut W, content: &[Element]) -> io::Result<()> {
+        // Blockquote base style: italic, white color
+        let blockquote_style = StyleState {
+            italic: true,
+            color: Some(Color::White),
+            ..StyleState::default()
+        };
+
         for element in content {
             match element {
                 Element::Paragraph { content } => {
-                    // First line
+                    // First line - start fresh after prefix
                     execute!(out, SetForegroundColor(Color::DarkGrey))?;
                     write!(out, "  ▌ ")?;
-                    execute!(
-                        out,
-                        SetForegroundColor(Color::White),
-                        SetAttribute(Attribute::Italic)
-                    )?;
+                    execute!(out, ResetColor)?;
+                    blockquote_style.apply_fresh(out)?;
 
                     for inline in content {
                         match inline {
                             InlineElement::SoftBreak | InlineElement::HardBreak => {
                                 writeln!(out)?;
-                                execute!(out, ResetColor, SetAttribute(Attribute::Reset))?;
+                                // Reset for prefix, then apply blockquote style fresh
+                                execute!(out, SetAttribute(Attribute::Reset), ResetColor)?;
                                 execute!(out, SetForegroundColor(Color::DarkGrey))?;
                                 write!(out, "  ▌ ")?;
-                                execute!(
-                                    out,
-                                    SetForegroundColor(Color::White),
-                                    SetAttribute(Attribute::Italic)
-                                )?;
+                                execute!(out, ResetColor)?;
+                                blockquote_style.apply_fresh(out)?;
                             }
                             _ => {
-                                self.render_inline(out, inline)?;
+                                self.render_inline(out, inline, &blockquote_style)?;
                             }
                         }
                     }
                     writeln!(out)?;
-                    execute!(out, ResetColor, SetAttribute(Attribute::Reset))?;
+                    execute!(out, SetAttribute(Attribute::Reset), ResetColor)?;
                 }
                 _ => {
                     execute!(out, SetForegroundColor(Color::DarkGrey))?;
@@ -610,8 +733,9 @@ impl TerminalRenderer {
                 content: inline_content,
             } = &content[0]
             {
+                let style = StyleState::default();
                 for inline in inline_content {
-                    self.render_inline(out, inline)?;
+                    self.render_inline(out, inline, &style)?;
                 }
                 writeln!(out)?;
                 writeln!(out)?;

@@ -273,9 +273,27 @@ fn render_with_pager(
                     return Ok(());
                 }
             }
-            // Wait for pager to finish, ignore exit status errors
-            // (user might quit pager early with 'q')
-            let _ = child.wait();
+            // Wait for pager to finish
+            match child.wait() {
+                Ok(status) => {
+                    // Exit codes: 0 = normal, 1 = quit early (less 'q'), others = error
+                    // Only warn on actual errors (signal termination, etc.)
+                    if !status.success() {
+                        #[cfg(unix)]
+                        if let Some(signal) = std::os::unix::process::ExitStatusExt::signal(&status)
+                        {
+                            // Signal termination (e.g., SIGPIPE) - not an error for pagers
+                            if signal != 13 {
+                                // 13 = SIGPIPE, which is normal
+                                eprintln!("Pager terminated by signal {}", signal);
+                            }
+                        }
+                    }
+                }
+                Err(e) => {
+                    eprintln!("Warning: Failed to wait for pager: {}", e);
+                }
+            }
         }
         Err(_) => {
             // Fallback to direct output if pager fails to spawn

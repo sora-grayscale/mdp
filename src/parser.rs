@@ -194,6 +194,31 @@ pub fn parse_markdown(input: &str) -> Document {
     Document { elements }
 }
 
+/// Helper to compare TagEnd variants properly (handles variants with data)
+fn tag_end_matches(actual: &TagEnd, expected: &TagEnd) -> bool {
+    matches!(
+        (actual, expected),
+        (TagEnd::Paragraph, TagEnd::Paragraph)
+            | (TagEnd::Heading(_), TagEnd::Heading(_))
+            | (TagEnd::BlockQuote, TagEnd::BlockQuote)
+            | (TagEnd::CodeBlock, TagEnd::CodeBlock)
+            | (TagEnd::List(_), TagEnd::List(_))
+            | (TagEnd::Item, TagEnd::Item)
+            | (TagEnd::FootnoteDefinition, TagEnd::FootnoteDefinition)
+            | (TagEnd::Table, TagEnd::Table)
+            | (TagEnd::TableHead, TagEnd::TableHead)
+            | (TagEnd::TableRow, TagEnd::TableRow)
+            | (TagEnd::TableCell, TagEnd::TableCell)
+            | (TagEnd::Emphasis, TagEnd::Emphasis)
+            | (TagEnd::Strong, TagEnd::Strong)
+            | (TagEnd::Strikethrough, TagEnd::Strikethrough)
+            | (TagEnd::Link, TagEnd::Link)
+            | (TagEnd::Image, TagEnd::Image)
+            | (TagEnd::HtmlBlock, TagEnd::HtmlBlock)
+            | (TagEnd::MetadataBlock(_), TagEnd::MetadataBlock(_))
+    )
+}
+
 /// Parse inline elements recursively, handling nested structures like **[link](url)**
 fn parse_inline_elements(
     events: &[Event],
@@ -204,22 +229,29 @@ fn parse_inline_elements(
     let mut index = start;
 
     while index < events.len() {
-        // Check if we hit our end tag
+        // Check if we hit our expected end tag (for inline elements like Strong, Emphasis, etc.)
         if let Some(ref end) = end_tag {
             if let Event::End(tag_end) = &events[index] {
-                if std::mem::discriminant(tag_end) == std::mem::discriminant(end) {
+                if tag_end_matches(tag_end, end) {
                     return (elements, index);
                 }
             }
         }
 
         match &events[index] {
-            // End tags for block-level elements
+            // Block-level end tags: only terminate when we have no specific end_tag
+            // (i.e., we're parsing top-level inline content within a block)
+            // When end_tag is Some (parsing nested inline), we skip these and let parent handle
             Event::End(TagEnd::Paragraph)
             | Event::End(TagEnd::Item)
             | Event::End(TagEnd::BlockQuote)
             | Event::End(TagEnd::FootnoteDefinition) => {
-                return (elements, index);
+                if end_tag.is_none() {
+                    // Top-level parsing, this is our boundary
+                    return (elements, index);
+                }
+                // Inside nested inline element - skip and continue
+                // This shouldn't happen in well-formed markdown, but handle gracefully
             }
 
             Event::Text(text) => {
