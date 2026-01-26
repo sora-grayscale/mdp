@@ -506,7 +506,8 @@ impl TerminalRenderer {
             };
 
             // Calculate content indent (indent + bullet width) for continuation lines
-            let bullet_width = bullet.chars().count();
+            // Use unicode_width for accurate display width calculation
+            let bullet_width = bullet.width();
             let content_indent = " ".repeat(indent + bullet_width);
 
             // Render bullet for the first content element

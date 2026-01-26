@@ -158,7 +158,8 @@ impl HtmlRenderer {
         let mut in_footnote = false;
         let mut in_heading = false;
         let mut current_heading_level: u8 = 0;
-        let mut current_heading_text = String::new();
+        let mut current_heading_text = String::new(); // Plain text for TOC/anchor
+        let mut current_heading_events: Vec<Event> = Vec::new(); // Events for HTML structure
         let mut current_heading_classes: Vec<CowStr> = Vec::new();
         let mut current_heading_attrs: Vec<(CowStr, Option<CowStr>)> = Vec::new();
 
@@ -181,6 +182,7 @@ impl HtmlRenderer {
                     in_heading = true;
                     current_heading_level = Self::heading_level_to_u8(*level);
                     current_heading_text.clear();
+                    current_heading_events.clear();
                     current_heading_classes = classes.clone();
                     current_heading_attrs = attrs.clone();
                     // Don't push yet, we'll create a new event with id
@@ -188,10 +190,10 @@ impl HtmlRenderer {
                 Event::End(TagEnd::Heading(_)) => {
                     in_heading = false;
 
-                    // Generate anchor using shared utility
+                    // Generate anchor using shared utility (from plain text)
                     let anchor = anchor_gen.generate(&current_heading_text);
 
-                    // Store TOC entry
+                    // Store TOC entry (plain text for display)
                     toc_entries.push((
                         current_heading_level,
                         current_heading_text.clone(),
@@ -213,25 +215,25 @@ impl HtmlRenderer {
                         classes: current_heading_classes.clone(),
                         attrs: current_heading_attrs.clone(),
                     }));
-                    main_events.push(Event::Text(CowStr::Boxed(
-                        current_heading_text.clone().into_boxed_str(),
-                    )));
+                    // Push collected heading content (preserves links and other inline elements)
+                    main_events.append(&mut current_heading_events);
                     main_events.push(event);
                 }
                 Event::Text(text) if in_heading => {
                     current_heading_text.push_str(text);
+                    current_heading_events.push(event);
                 }
                 Event::Code(code) if in_heading => {
                     current_heading_text.push_str(code);
+                    current_heading_events.push(event);
                 }
                 // Transform Link events to Html events with custom attributes
-                // Skip link tags inside headings - only the text content matters for headings
                 Event::Start(Tag::Link {
                     link_type: _,
                     dest_url,
                     title,
                     id: _,
-                }) if !in_heading => {
+                }) => {
                     let title_opt = if title.is_empty() {
                         None
                     } else {
@@ -239,23 +241,24 @@ impl HtmlRenderer {
                     };
                     let html = Self::generate_link_open_tag(dest_url.as_ref(), title_opt);
                     let html_event = Event::Html(CowStr::Boxed(html.into_boxed_str()));
-                    if in_footnote {
+                    if in_heading {
+                        current_heading_events.push(html_event);
+                    } else if in_footnote {
                         footnote_events.push(html_event);
                     } else {
                         main_events.push(html_event);
                     }
                 }
-                Event::End(TagEnd::Link) if !in_heading => {
+                Event::End(TagEnd::Link) => {
                     let html_event = Event::Html(CowStr::Borrowed("</a>"));
-                    if in_footnote {
+                    if in_heading {
+                        current_heading_events.push(html_event);
+                    } else if in_footnote {
                         footnote_events.push(html_event);
                     } else {
                         main_events.push(html_event);
                     }
                 }
-                // Links inside headings: skip the tag, text is captured separately
-                Event::Start(Tag::Link { .. }) if in_heading => {}
-                Event::End(TagEnd::Link) if in_heading => {}
                 _ => {
                     if in_footnote {
                         footnote_events.push(event);
@@ -405,10 +408,12 @@ mod tests {
     fn test_heading_with_link() {
         let renderer = HtmlRenderer::new("Test");
         let result = renderer.render("# Heading with [Link](https://example.com)");
-        // Heading should be properly formed with id
+        // Heading should be properly formed with id (anchor from plain text)
         assert!(result.contains("<h1 id=\"heading-with-link\">"));
-        // Link should NOT appear inside heading (links in headings are stripped to text only)
-        assert!(!result.contains("<h1 id=\"heading-with-link\"><a"));
+        // Link should be preserved inside heading with proper attributes
+        assert!(result.contains("Heading with <a href="));
+        assert!(result.contains("target=\"_blank\""));
+        assert!(result.contains(">Link</a>"));
         // The closing tag should be correct
         assert!(result.contains("</h1>"));
     }
