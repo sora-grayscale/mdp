@@ -58,33 +58,59 @@ pub struct ServerState {
 
 impl ServerState {
     async fn render_html(&self, file_path: Option<&str>) -> String {
-        let file_tree = self.file_tree.read().await;
-        let file = if let Some(path) = file_path {
-            file_tree.find_file(path)
-        } else {
-            file_tree.default_file()
-        };
+        // Get file info while holding lock briefly
+        let (absolute_path, relative_path, is_single_file, file_tree_clone) = {
+            let file_tree = self.file_tree.read().await;
+            let file = if let Some(path) = file_path {
+                file_tree.find_file(path)
+            } else {
+                file_tree.default_file()
+            };
 
-        let (content, current_file) = if let Some(f) = file {
-            let content = std::fs::read_to_string(&f.absolute_path).unwrap_or_default();
-            (content, Some(f.relative_path.to_string_lossy().to_string()))
+            if let Some(f) = file {
+                (
+                    Some(f.absolute_path.clone()),
+                    Some(f.relative_path.to_string_lossy().to_string()),
+                    file_tree.is_single_file(),
+                    if file_tree.is_single_file() {
+                        None
+                    } else {
+                        Some(file_tree.clone())
+                    },
+                )
+            } else {
+                (None, None, file_tree.is_single_file(), None)
+            }
+        };
+        // Lock released here, now do I/O
+
+        let (content, current_file) = if let Some(path) = absolute_path {
+            let content = std::fs::read_to_string(&path).unwrap_or_default();
+            (content, relative_path)
         } else {
             ("# No file selected".to_string(), None)
         };
 
         let renderer = HtmlRenderer::new(&self.title).with_toc(self.show_toc);
 
-        if file_tree.is_single_file() {
+        if is_single_file {
             renderer.render(&content)
+        } else if let Some(tree) = file_tree_clone {
+            renderer.render_with_sidebar(&content, &tree, current_file.as_deref())
         } else {
-            renderer.render_with_sidebar(&content, &file_tree, current_file.as_deref())
+            renderer.render(&content)
         }
     }
 
     async fn render_content_only(&self, file_path: &str) -> Option<String> {
-        let file_tree = self.file_tree.read().await;
-        let file = file_tree.find_file(file_path)?;
-        let content = std::fs::read_to_string(&file.absolute_path).ok()?;
+        // Get file path while holding lock briefly
+        let absolute_path = {
+            let file_tree = self.file_tree.read().await;
+            file_tree.find_file(file_path)?.absolute_path.clone()
+        };
+        // Lock released here, now do I/O
+
+        let content = std::fs::read_to_string(&absolute_path).ok()?;
         let renderer = HtmlRenderer::new(&self.title).with_toc(self.show_toc);
         Some(renderer.render_content(&content))
     }

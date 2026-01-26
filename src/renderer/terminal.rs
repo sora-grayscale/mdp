@@ -289,7 +289,13 @@ impl TerminalRenderer {
             "base16-ocean.dark"
         };
 
-        let theme = &self.theme_set.themes[syntax_theme];
+        // Get theme with fallback to first available theme
+        let theme = self
+            .theme_set
+            .themes
+            .get(syntax_theme)
+            .or_else(|| self.theme_set.themes.values().next())
+            .expect("No themes available in ThemeSet");
 
         // Find syntax for the language
         let syntax = language

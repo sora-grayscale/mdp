@@ -126,11 +126,13 @@ pub async fn watch_directory_with_tree_update<P: AsRef<Path>>(
             .collect()
     };
 
-    // Spawn blocking task for directory watching
-    let rt = tokio::runtime::Handle::current();
+    // Create channel for sending events from blocking thread to async handler
+    let (event_tx, mut event_rx) = tokio::sync::mpsc::channel::<bool>(16);
+
+    // Spawn blocking task for directory watching (only file system operations)
+    let path_clone = path.clone();
     tokio::task::spawn_blocking(move || {
         let (debounce_tx, debounce_rx) = channel();
-        let mut last_paths = initial_paths;
 
         // Create a debouncer with 200ms delay
         let mut debouncer = match new_debouncer(Duration::from_millis(200), debounce_tx) {
@@ -142,7 +144,10 @@ pub async fn watch_directory_with_tree_update<P: AsRef<Path>>(
         };
 
         // Watch the directory recursively
-        if let Err(e) = debouncer.watcher().watch(&path, RecursiveMode::Recursive) {
+        if let Err(e) = debouncer
+            .watcher()
+            .watch(&path_clone, RecursiveMode::Recursive)
+        {
             eprintln!("Failed to watch directory: {}", e);
             return;
         }
@@ -151,46 +156,18 @@ pub async fn watch_directory_with_tree_update<P: AsRef<Path>>(
             match debounce_rx.recv() {
                 Ok(Ok(events)) => {
                     // Filter for markdown files only
-                    let md_events: Vec<_> = events
-                        .iter()
-                        .filter(|e| {
-                            e.kind == DebouncedEventKind::Any
-                                && e.path
-                                    .extension()
-                                    .is_some_and(|ext| ext == "md" || ext == "markdown")
-                        })
-                        .collect();
-
-                    if md_events.is_empty() {
-                        continue;
-                    }
-
-                    // Rebuild file tree and get new file paths
-                    let new_paths: HashSet<String> = rt.block_on(async {
-                        if let Err(e) = state.rebuild_file_tree().await {
-                            eprintln!("Failed to rebuild file tree: {}", e);
-                            return last_paths.clone();
-                        }
-                        let tree = state.file_tree.read().await;
-                        tree.files
-                            .iter()
-                            .map(|f| f.relative_path.to_string_lossy().to_string())
-                            .collect()
+                    let has_md_events = events.iter().any(|e| {
+                        e.kind == DebouncedEventKind::Any
+                            && e.path
+                                .extension()
+                                .is_some_and(|ext| ext == "md" || ext == "markdown")
                     });
 
-                    // Check if file paths changed (handles add, remove, and rename)
-                    if new_paths != last_paths {
-                        println!(
-                            "File tree changed ({} -> {} files), updating sidebar...",
-                            last_paths.len(),
-                            new_paths.len()
-                        );
-                        let _ = tx.send(WsMessage::TreeUpdate);
-                        last_paths = new_paths;
-                    } else {
-                        // Just content changed
-                        println!("Markdown file changed, reloading...");
-                        let _ = tx.send(WsMessage::Reload);
+                    if has_md_events {
+                        // Send event to async handler (non-blocking)
+                        if event_tx.blocking_send(true).is_err() {
+                            break;
+                        }
                     }
                 }
                 Ok(Err(e)) => {
@@ -203,6 +180,41 @@ pub async fn watch_directory_with_tree_update<P: AsRef<Path>>(
         }
 
         drop(debouncer);
+    });
+
+    // Async handler for processing events (runs on async runtime, not blocking pool)
+    let mut last_paths = initial_paths;
+    tokio::spawn(async move {
+        while event_rx.recv().await.is_some() {
+            // Rebuild file tree and get new file paths
+            if let Err(e) = state.rebuild_file_tree().await {
+                eprintln!("Failed to rebuild file tree: {}", e);
+                continue;
+            }
+
+            let new_paths: HashSet<String> = {
+                let tree = state.file_tree.read().await;
+                tree.files
+                    .iter()
+                    .map(|f| f.relative_path.to_string_lossy().to_string())
+                    .collect()
+            };
+
+            // Check if file paths changed (handles add, remove, and rename)
+            if new_paths != last_paths {
+                println!(
+                    "File tree changed ({} -> {} files), updating sidebar...",
+                    last_paths.len(),
+                    new_paths.len()
+                );
+                let _ = tx.send(WsMessage::TreeUpdate);
+                last_paths = new_paths;
+            } else {
+                // Just content changed
+                println!("Markdown file changed, reloading...");
+                let _ = tx.send(WsMessage::Reload);
+            }
+        }
     });
 
     Ok(())

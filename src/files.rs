@@ -27,8 +27,9 @@ impl FileTree {
         let base_path = path.canonicalize()?;
         let mut files = Vec::new();
 
+        // Don't follow symlinks to avoid infinite loops with circular symlinks
         for entry in WalkDir::new(&base_path)
-            .follow_links(true)
+            .follow_links(false)
             .into_iter()
             .filter_map(|e| e.ok())
         {
@@ -149,10 +150,18 @@ impl FileTree {
     }
 
     /// Find a file by its relative path
+    /// Normalizes the path to handle cases like "./a.md" vs "a.md"
     pub fn find_file(&self, relative_path: &str) -> Option<&MarkdownFile> {
-        self.files
-            .iter()
-            .find(|f| f.relative_path.to_string_lossy() == relative_path)
+        // Normalize input path: strip leading "./" and normalize separators
+        let normalized_input = relative_path
+            .trim_start_matches("./")
+            .trim_start_matches(".\\")
+            .replace('\\', "/");
+
+        self.files.iter().find(|f| {
+            let file_path = f.relative_path.to_string_lossy().replace('\\', "/");
+            file_path == normalized_input
+        })
     }
 
     /// Check if this is a single file (not directory mode)
