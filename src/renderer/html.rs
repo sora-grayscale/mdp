@@ -159,6 +159,8 @@ impl HtmlRenderer {
         let mut in_heading = false;
         let mut current_heading_level: u8 = 0;
         let mut current_heading_text = String::new();
+        let mut current_heading_classes: Vec<CowStr> = Vec::new();
+        let mut current_heading_attrs: Vec<(CowStr, Option<CowStr>)> = Vec::new();
 
         for event in parser {
             match &event {
@@ -170,10 +172,17 @@ impl HtmlRenderer {
                     footnote_events.push(event);
                     in_footnote = false;
                 }
-                Event::Start(Tag::Heading { level, .. }) => {
+                Event::Start(Tag::Heading {
+                    level,
+                    classes,
+                    attrs,
+                    ..
+                }) => {
                     in_heading = true;
                     current_heading_level = Self::heading_level_to_u8(*level);
                     current_heading_text.clear();
+                    current_heading_classes = classes.clone();
+                    current_heading_attrs = attrs.clone();
                     // Don't push yet, we'll create a new event with id
                 }
                 Event::End(TagEnd::Heading(_)) => {
@@ -201,8 +210,8 @@ impl HtmlRenderer {
                     main_events.push(Event::Start(Tag::Heading {
                         level,
                         id: Some(CowStr::Boxed(anchor.into_boxed_str())),
-                        classes: vec![],
-                        attrs: vec![],
+                        classes: current_heading_classes.clone(),
+                        attrs: current_heading_attrs.clone(),
                     }));
                     main_events.push(Event::Text(CowStr::Boxed(
                         current_heading_text.clone().into_boxed_str(),
@@ -273,7 +282,10 @@ impl HtmlRenderer {
 
         if let Some(re) = mermaid_pattern {
             re.replace_all(html, |caps: &regex::Captures| {
+                // Decode HTML entities first to get raw mermaid code,
+                // then re-encode to ensure safe HTML output
                 let code = html_escape::decode_html_entities(&caps[1]);
+                let safe_code = html_escape::encode_text(code.trim());
                 format!(
                     r#"<div class="mermaid-container">
     <div class="mermaid-header">
@@ -284,7 +296,7 @@ impl HtmlRenderer {
         <pre class="mermaid">{}</pre>
     </div>
 </div>"#,
-                    code.trim()
+                    safe_code
                 )
             })
             .to_string()

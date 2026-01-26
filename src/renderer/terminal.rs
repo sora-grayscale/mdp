@@ -432,33 +432,35 @@ impl TerminalRenderer {
         }
         writeln!(out, "┐")?;
 
-        // Draw header
-        execute!(out, SetForegroundColor(Color::DarkGrey))?;
-        write!(out, "│")?;
-        for (i, header) in headers.iter().enumerate() {
-            let width = col_widths.get(i).copied().unwrap_or(10);
-            let align = alignments.get(i).copied().unwrap_or(Alignment::Left);
-            execute!(
-                out,
-                SetForegroundColor(Color::Cyan),
-                SetAttribute(Attribute::Bold)
-            )?;
-            write!(out, "{}", self.align_text(header, width, align))?;
-            execute!(out, ResetColor, SetAttribute(Attribute::Reset))?;
+        // Draw header only if headers exist
+        if !headers.is_empty() {
             execute!(out, SetForegroundColor(Color::DarkGrey))?;
             write!(out, "│")?;
-        }
-        writeln!(out)?;
-
-        // Draw header separator
-        write!(out, "├")?;
-        for (i, width) in col_widths.iter().enumerate() {
-            write!(out, "{}", "─".repeat(*width))?;
-            if i < col_widths.len() - 1 {
-                write!(out, "┼")?;
+            for (i, header) in headers.iter().enumerate() {
+                let width = col_widths.get(i).copied().unwrap_or(10);
+                let align = alignments.get(i).copied().unwrap_or(Alignment::Left);
+                execute!(
+                    out,
+                    SetForegroundColor(Color::Cyan),
+                    SetAttribute(Attribute::Bold)
+                )?;
+                write!(out, "{}", self.align_text(header, width, align))?;
+                execute!(out, ResetColor, SetAttribute(Attribute::Reset))?;
+                execute!(out, SetForegroundColor(Color::DarkGrey))?;
+                write!(out, "│")?;
             }
+            writeln!(out)?;
+
+            // Draw header separator
+            write!(out, "├")?;
+            for (i, width) in col_widths.iter().enumerate() {
+                write!(out, "{}", "─".repeat(*width))?;
+                if i < col_widths.len() - 1 {
+                    write!(out, "┼")?;
+                }
+            }
+            writeln!(out, "┤")?;
         }
-        writeln!(out, "┤")?;
 
         // Draw rows
         for row in rows {
