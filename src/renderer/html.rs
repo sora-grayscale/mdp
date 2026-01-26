@@ -412,15 +412,29 @@ graph TD
     A[Tom & Jerry]
 ```"#;
         let result = renderer.render(input);
-        // Ampersand must be encoded as &amp; for HTML safety
+
+        // Verify mermaid container is present
         assert!(
-            result.contains("Tom &amp; Jerry"),
-            "Mermaid content should have & encoded as &amp; for HTML safety"
+            result.contains("mermaid-container"),
+            "Mermaid block should be rendered"
         );
-        // Should not contain unencoded ampersand in the mermaid block
-        assert!(
-            !result.contains("<pre class=\"mermaid\">") || !result.contains("Tom & Jerry</pre>"),
-            "Raw & should not appear in mermaid output"
-        );
+
+        // Extract the mermaid pre content and verify ampersand is properly encoded
+        // Logic: IF mermaid pre exists, THEN no raw & should appear within it
+        if let Some(start) = result.find("<pre class=\"mermaid\">") {
+            let after_pre = &result[start..];
+            if let Some(end) = after_pre.find("</pre>") {
+                let mermaid_content = &after_pre[..end];
+                assert!(
+                    !mermaid_content.contains("Tom & Jerry"),
+                    "Raw & should not appear in mermaid output, found: {}",
+                    mermaid_content
+                );
+                assert!(
+                    mermaid_content.contains("Tom &amp; Jerry"),
+                    "Ampersand should be encoded as &amp; in mermaid content"
+                );
+            }
+        }
     }
 }

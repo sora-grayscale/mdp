@@ -152,6 +152,9 @@ impl FileTree {
     /// Find a file by its relative path
     /// Normalizes the path to handle cases like "./a.md" vs "a.md"
     /// Rejects paths containing ".." segments for security (path traversal prevention)
+    ///
+    /// Note: This check assumes the input is NOT URL-encoded. If URL-encoded paths
+    /// (e.g., "%2e%2e" for "..") need to be handled, the caller should decode them first.
     pub fn find_file(&self, relative_path: &str) -> Option<&MarkdownFile> {
         // Security: reject paths with ".." as a path segment to prevent directory traversal
         // Check both / and \ as separators, also check start/end of string

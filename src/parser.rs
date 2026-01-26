@@ -195,27 +195,22 @@ pub fn parse_markdown(input: &str) -> Document {
 }
 
 /// Helper to compare TagEnd variants properly (handles variants with data)
+/// Check if two TagEnd variants match (for inline element parsing)
+/// Only includes variants actually used as end_tag in parse_inline_elements:
+/// - Inline elements: Emphasis, Strong, Strikethrough, Link, Image
+/// - Block boundaries containing inline content: Paragraph, Item
 fn tag_end_matches(actual: &TagEnd, expected: &TagEnd) -> bool {
     matches!(
         (actual, expected),
-        (TagEnd::Paragraph, TagEnd::Paragraph)
-            | (TagEnd::Heading(_), TagEnd::Heading(_))
-            | (TagEnd::BlockQuote, TagEnd::BlockQuote)
-            | (TagEnd::CodeBlock, TagEnd::CodeBlock)
-            | (TagEnd::List(_), TagEnd::List(_))
-            | (TagEnd::Item, TagEnd::Item)
-            | (TagEnd::FootnoteDefinition, TagEnd::FootnoteDefinition)
-            | (TagEnd::Table, TagEnd::Table)
-            | (TagEnd::TableHead, TagEnd::TableHead)
-            | (TagEnd::TableRow, TagEnd::TableRow)
-            | (TagEnd::TableCell, TagEnd::TableCell)
-            | (TagEnd::Emphasis, TagEnd::Emphasis)
+        // Inline elements
+        (TagEnd::Emphasis, TagEnd::Emphasis)
             | (TagEnd::Strong, TagEnd::Strong)
             | (TagEnd::Strikethrough, TagEnd::Strikethrough)
             | (TagEnd::Link, TagEnd::Link)
             | (TagEnd::Image, TagEnd::Image)
-            | (TagEnd::HtmlBlock, TagEnd::HtmlBlock)
-            | (TagEnd::MetadataBlock(_), TagEnd::MetadataBlock(_))
+            // Block boundaries that contain inline content
+            | (TagEnd::Paragraph, TagEnd::Paragraph)
+            | (TagEnd::Item, TagEnd::Item)
     )
 }
 

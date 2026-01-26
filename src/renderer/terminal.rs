@@ -23,7 +23,17 @@ struct StyleState {
 
 impl StyleState {
     /// Apply this style from a clean state (used at the start of rendering)
+    /// First resets all attributes to ensure a clean slate, then applies desired styles
     fn apply_fresh<W: Write>(&self, out: &mut W) -> io::Result<()> {
+        // First, explicitly clear all style attributes to ensure a clean slate
+        // This prevents any previously set terminal styles from leaking through
+        execute!(out, SetAttribute(Attribute::NoBold))?;
+        execute!(out, SetAttribute(Attribute::NoItalic))?;
+        execute!(out, SetAttribute(Attribute::NotCrossedOut))?;
+        execute!(out, SetAttribute(Attribute::NoUnderline))?;
+        execute!(out, ResetColor)?;
+
+        // Now apply the desired styles
         if self.bold {
             execute!(out, SetAttribute(Attribute::Bold))?;
         }
