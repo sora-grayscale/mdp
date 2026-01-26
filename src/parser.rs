@@ -45,10 +45,11 @@ pub enum Element {
     },
 }
 
+/// A list item containing zero or more block elements
+/// Per GFM spec, list items can contain paragraphs, code blocks, nested lists, etc.
 #[derive(Debug, Clone)]
 pub struct ListItem {
-    pub content: Vec<InlineElement>,
-    pub sub_list: Option<Box<Element>>,
+    pub content: Vec<Element>,
 }
 
 #[derive(Debug, Clone)]
@@ -400,42 +401,48 @@ fn parse_element(events: &[Event], start: usize) -> (Option<Element>, usize) {
                         break;
                     }
                     Event::Start(Tag::Item) => {
-                        let mut item_content = Vec::new();
-                        let mut sub_list = None;
+                        let mut item_content: Vec<Element> = Vec::new();
                         index += 1;
 
-                        // Parse inline elements until we hit a nested list or end of item
+                        // Parse block elements within the list item
                         while index < events.len() {
                             match &events[index] {
                                 Event::End(TagEnd::Item) => {
                                     break;
                                 }
-                                Event::Start(Tag::List(_)) => {
-                                    // Handle nested list
-                                    let (nested, new_index) = parse_element(events, index);
-                                    if let Some(list) = nested {
-                                        sub_list = Some(Box::new(list));
+                                // Block elements: parse recursively
+                                Event::Start(Tag::List(_))
+                                | Event::Start(Tag::Paragraph)
+                                | Event::Start(Tag::CodeBlock(_))
+                                | Event::Start(Tag::BlockQuote)
+                                | Event::Start(Tag::Table(_)) => {
+                                    let (element, new_index) = parse_element(events, index);
+                                    if let Some(el) = element {
+                                        item_content.push(el);
                                     }
                                     index = new_index;
                                     continue;
                                 }
-                                Event::Start(Tag::Paragraph) => {
-                                    // List items may contain paragraphs
-                                    let (content, new_index) = parse_inline_elements(
-                                        events,
-                                        index + 1,
-                                        Some(TagEnd::Paragraph),
-                                    );
-                                    item_content.extend(content);
-                                    index = new_index + 1;
+                                // Loose inline content (text without paragraph wrapper)
+                                // Wrap in a paragraph for consistency
+                                Event::Text(_)
+                                | Event::Code(_)
+                                | Event::Start(Tag::Strong)
+                                | Event::Start(Tag::Emphasis)
+                                | Event::Start(Tag::Strikethrough)
+                                | Event::Start(Tag::Link { .. }) => {
+                                    let (inline_content, new_index) =
+                                        parse_inline_elements(events, index, Some(TagEnd::Item));
+                                    if !inline_content.is_empty() {
+                                        item_content.push(Element::Paragraph {
+                                            content: inline_content,
+                                        });
+                                    }
+                                    index = new_index;
                                     continue;
                                 }
                                 _ => {
-                                    // Parse other inline elements
-                                    let (content, new_index) =
-                                        parse_inline_elements(events, index, Some(TagEnd::Item));
-                                    item_content.extend(content);
-                                    index = new_index;
+                                    index += 1;
                                     continue;
                                 }
                             }
@@ -443,7 +450,6 @@ fn parse_element(events: &[Event], start: usize) -> (Option<Element>, usize) {
 
                         items.push(ListItem {
                             content: item_content,
-                            sub_list,
                         });
                     }
                     _ => {}
@@ -729,19 +735,47 @@ mod tests {
         if let Element::List { items, .. } = &doc.elements[0] {
             assert_eq!(items.len(), 2);
 
+            // Helper to check if Element::Paragraph contains a specific inline element
+            fn paragraph_contains<F>(elements: &[Element], predicate: F) -> bool
+            where
+                F: Fn(&InlineElement) -> bool,
+            {
+                elements.iter().any(|el| {
+                    if let Element::Paragraph { content } = el {
+                        content.iter().any(&predicate)
+                    } else {
+                        false
+                    }
+                })
+            }
+
             // First item should have Strong
-            let first_has_strong = items[0]
-                .content
-                .iter()
-                .any(|el| matches!(el, InlineElement::Strong(_)));
+            let first_has_strong =
+                paragraph_contains(&items[0].content, |el| matches!(el, InlineElement::Strong(_)));
             assert!(first_has_strong, "First item should have Strong");
 
             // Second item should have Emphasis
-            let second_has_emphasis = items[1]
+            let second_has_emphasis = paragraph_contains(&items[1].content, |el| {
+                matches!(el, InlineElement::Emphasis(_))
+            });
+            assert!(second_has_emphasis, "Second item should have Emphasis");
+        } else {
+            panic!("First element should be a list");
+        }
+    }
+
+    #[test]
+    fn test_list_with_code_block() {
+        let input = "- Item with code:\n\n  ```rust\n  let x = 1;\n  ```\n\n- Another item";
+        let doc = parse_markdown(input);
+
+        if let Element::List { items, .. } = &doc.elements[0] {
+            // First item should contain a code block
+            let first_has_code = items[0]
                 .content
                 .iter()
-                .any(|el| matches!(el, InlineElement::Emphasis(_)));
-            assert!(second_has_emphasis, "Second item should have Emphasis");
+                .any(|el| matches!(el, Element::CodeBlock { .. }));
+            assert!(first_has_code, "First item should have CodeBlock");
         } else {
             panic!("First element should be a list");
         }

@@ -505,19 +505,58 @@ impl TerminalRenderer {
                 }
             };
 
-            execute!(out, SetForegroundColor(Color::Cyan))?;
-            write!(out, "{}{}", indent_str, bullet)?;
-            execute!(out, ResetColor)?;
+            // Render bullet for the first content element
+            let mut first_element = true;
 
-            let style = StyleState::default();
-            for inline in &item.content {
-                self.render_inline(out, inline, &style)?;
+            for element in &item.content {
+                if first_element {
+                    execute!(out, SetForegroundColor(Color::Cyan))?;
+                    write!(out, "{}{}", indent_str, bullet)?;
+                    execute!(out, ResetColor)?;
+                    first_element = false;
+                }
+
+                match element {
+                    Element::Paragraph { content } => {
+                        // Render paragraph inline content on the same line as bullet
+                        let style = StyleState::default();
+                        for inline in content {
+                            self.render_inline(out, inline, &style)?;
+                        }
+                        writeln!(out)?;
+                    }
+                    Element::List {
+                        ordered: nested_ordered,
+                        start: nested_start,
+                        items: nested_items,
+                    } => {
+                        // Nested list: render with increased indent
+                        if !first_element {
+                            // If not first, we need newline before nested list
+                        }
+                        self.render_list(
+                            out,
+                            *nested_ordered,
+                            *nested_start,
+                            nested_items,
+                            indent + 2,
+                        )?;
+                    }
+                    _ => {
+                        // Other block elements (CodeBlock, BlockQuote, etc.)
+                        // Render with additional indent for visual nesting
+                        writeln!(out)?;
+                        self.render_element(out, element, indent + 2)?;
+                    }
+                }
             }
-            writeln!(out)?;
 
-            // Render nested list
-            if let Some(ref sub_list) = item.sub_list {
-                self.render_element(out, sub_list, indent + 2)?;
+            // If item had no content, just print the bullet
+            if first_element {
+                execute!(out, SetForegroundColor(Color::Cyan))?;
+                write!(out, "{}{}", indent_str, bullet)?;
+                execute!(out, ResetColor)?;
+                writeln!(out)?;
             }
         }
 
