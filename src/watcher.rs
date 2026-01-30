@@ -10,17 +10,24 @@ use tokio::sync::broadcast;
 use crate::server::{ServerState, WsMessage};
 
 /// Watch a file for changes and send notifications
+/// Watches the parent directory to handle editors that replace files (vim, etc.)
 pub fn watch_file<P: AsRef<Path>>(path: P, tx: broadcast::Sender<()>) -> notify::Result<()> {
-    let path = path.as_ref().to_path_buf();
+    let path = path
+        .as_ref()
+        .canonicalize()
+        .unwrap_or_else(|_| path.as_ref().to_path_buf());
+    let parent = path.parent().unwrap_or(&path).to_path_buf();
+    let file_name = path.file_name().map(|n| n.to_os_string());
+
     let (debounce_tx, debounce_rx) = channel();
 
     // Create a debouncer with 200ms delay
     let mut debouncer = new_debouncer(Duration::from_millis(200), debounce_tx)?;
 
-    // Watch the file
+    // Watch the parent directory to handle file replacement
     debouncer
         .watcher()
-        .watch(&path, RecursiveMode::NonRecursive)?;
+        .watch(&parent, RecursiveMode::NonRecursive)?;
 
     println!("Watching for changes: {}", path.display());
 
@@ -28,11 +35,15 @@ pub fn watch_file<P: AsRef<Path>>(path: P, tx: broadcast::Sender<()>) -> notify:
     loop {
         match debounce_rx.recv() {
             Ok(Ok(events)) => {
-                for event in events {
-                    if event.kind == DebouncedEventKind::Any {
-                        println!("File changed, reloading...");
-                        let _ = tx.send(());
-                    }
+                // Filter events for the target file only
+                let has_target_event = events.iter().any(|e| {
+                    e.kind == DebouncedEventKind::Any
+                        && e.path.file_name().map(|n| n.to_os_string()) == file_name
+                });
+
+                if has_target_event {
+                    println!("File changed, reloading...");
+                    let _ = tx.send(());
                 }
             }
             Ok(Err(e)) => {
@@ -51,11 +62,17 @@ pub fn watch_file<P: AsRef<Path>>(path: P, tx: broadcast::Sender<()>) -> notify:
 }
 
 /// Watch a file asynchronously using tokio
+/// Watches the parent directory to handle editors that replace files (vim, etc.)
 pub async fn watch_file_async<P: AsRef<Path>>(
     path: P,
     tx: broadcast::Sender<WsMessage>,
 ) -> notify::Result<()> {
-    let path = path.as_ref().to_path_buf();
+    let path = path
+        .as_ref()
+        .canonicalize()
+        .unwrap_or_else(|_| path.as_ref().to_path_buf());
+    let parent = path.parent().unwrap_or(&path).to_path_buf();
+    let file_name = path.file_name().map(|n| n.to_os_string());
 
     println!("Watching for changes: {}", path.display());
 
@@ -72,23 +89,27 @@ pub async fn watch_file_async<P: AsRef<Path>>(
             }
         };
 
-        // Watch the file
+        // Watch the parent directory to handle file replacement
         if let Err(e) = debouncer
             .watcher()
-            .watch(&path, RecursiveMode::NonRecursive)
+            .watch(&parent, RecursiveMode::NonRecursive)
         {
-            eprintln!("Failed to watch file: {}", e);
+            eprintln!("Failed to watch directory: {}", e);
             return;
         }
 
         loop {
             match debounce_rx.recv() {
                 Ok(Ok(events)) => {
-                    for event in events {
-                        if event.kind == DebouncedEventKind::Any {
-                            println!("File changed, reloading...");
-                            let _ = tx.send(WsMessage::Reload);
-                        }
+                    // Filter events for the target file only
+                    let has_target_event = events.iter().any(|e| {
+                        e.kind == DebouncedEventKind::Any
+                            && e.path.file_name().map(|n| n.to_os_string()) == file_name
+                    });
+
+                    if has_target_event {
+                        println!("File changed, reloading...");
+                        let _ = tx.send(WsMessage::Reload);
                     }
                 }
                 Ok(Err(e)) => {

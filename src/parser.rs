@@ -246,6 +246,15 @@ fn parse_inline_elements(
         }
 
         match &events[index] {
+            // Block-level start tags: return control to parse_element for proper handling
+            // This ensures nested lists, code blocks, etc. within list items are parsed correctly
+            Event::Start(Tag::List(_))
+            | Event::Start(Tag::CodeBlock(_))
+            | Event::Start(Tag::BlockQuote)
+            | Event::Start(Tag::Table(_)) => {
+                return (elements, index);
+            }
+
             // Block-level end tags: only terminate when we have no specific end_tag
             // (i.e., we're parsing top-level inline content within a block)
             // When end_tag is Some (parsing nested inline), we skip these and let parent handle
@@ -918,5 +927,37 @@ mod tests {
 
         let has_html_block = doc.elements.iter().any(|el| matches!(el, Element::Html(_)));
         assert!(has_html_block, "Should have HTML block element");
+    }
+
+    #[test]
+    fn test_nested_list() {
+        let input = "- a\n    - b";
+        let doc = parse_markdown(input);
+
+        // Should have one outer list
+        let outer_list = doc
+            .elements
+            .iter()
+            .find_map(|el| match el {
+                Element::List { items, .. } => Some(items),
+                _ => None,
+            })
+            .expect("Should have outer list");
+
+        assert_eq!(outer_list.len(), 1, "Outer list should have 1 item");
+
+        // First item should contain text "a" and a nested list
+        let first_item = &outer_list[0];
+        assert!(
+            first_item.content.len() >= 2,
+            "First item should have paragraph + nested list"
+        );
+
+        // Check for nested list
+        let has_nested_list = first_item
+            .content
+            .iter()
+            .any(|el| matches!(el, Element::List { .. }));
+        assert!(has_nested_list, "First item should contain a nested list");
     }
 }
