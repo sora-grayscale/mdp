@@ -193,8 +193,10 @@ fn run_terminal_mode(file_path: &PathBuf, theme: &str, no_pager: bool, show_toc:
 fn run_terminal_watch_mode(file_path: &PathBuf, theme: &str, show_toc: bool) {
     use crossterm::{
         ExecutableCommand, cursor,
+        event::{self, Event, KeyCode, KeyEvent, KeyModifiers},
         terminal::{self, ClearType},
     };
+    use std::time::Duration;
 
     let (tx, mut rx) = broadcast::channel::<()>(16);
 
@@ -209,18 +211,47 @@ fn run_terminal_watch_mode(file_path: &PathBuf, theme: &str, show_toc: bool) {
         }
     });
 
-    println!("\n--- Watching for changes (Press Ctrl+C to exit) ---\n");
+    println!("\n--- Watching for changes (Press q or Ctrl+C to exit) ---\n");
 
-    // Wait for changes and re-render
-    while rx.blocking_recv().is_ok() {
-        // Clear screen and re-render
-        let mut stdout = io::stdout();
-        let _ = stdout.execute(terminal::Clear(ClearType::All));
-        let _ = stdout.execute(cursor::MoveTo(0, 0));
+    // Enable raw mode for keyboard input
+    let _ = terminal::enable_raw_mode();
 
-        render_terminal_content(file_path, theme, show_toc);
-        println!("\n--- Watching for changes (Press Ctrl+C to exit) ---\n");
+    loop {
+        // Poll for keyboard events (non-blocking with 100ms timeout)
+        if event::poll(Duration::from_millis(100)).unwrap_or(false) {
+            if let Ok(Event::Key(KeyEvent {
+                code, modifiers, ..
+            })) = event::read()
+            {
+                match (code, modifiers) {
+                    // Exit on 'q' or 'Q'
+                    (KeyCode::Char('q'), KeyModifiers::NONE)
+                    | (KeyCode::Char('Q'), KeyModifiers::SHIFT) => {
+                        break;
+                    }
+                    // Exit on Ctrl+C
+                    (KeyCode::Char('c'), KeyModifiers::CONTROL) => {
+                        break;
+                    }
+                    _ => {}
+                }
+            }
+        }
+
+        // Check for file changes (non-blocking)
+        if let Ok(()) = rx.try_recv() {
+            // Clear screen and re-render
+            let mut stdout = io::stdout();
+            let _ = stdout.execute(terminal::Clear(ClearType::All));
+            let _ = stdout.execute(cursor::MoveTo(0, 0));
+
+            render_terminal_content(file_path, theme, show_toc);
+            println!("\n--- Watching for changes (Press q or Ctrl+C to exit) ---\n");
+        }
     }
+
+    // Restore terminal state
+    let _ = terminal::disable_raw_mode();
 }
 
 fn render_terminal_content(file_path: &PathBuf, theme: &str, show_toc: bool) {
