@@ -25,6 +25,48 @@
             --hover-bg: var(--color-canvas-inset, #eaeef2);
             --content-bg: var(--color-canvas-default, #ffffff);
             --transition-speed: 0.2s;
+
+            /* Rainbow colors for depth levels (Light mode) */
+            --depth-0-color: #0288D1;
+            --depth-0-bg: rgba(2, 136, 209, 0.08);
+            --depth-0-border: rgba(2, 136, 209, 0.5);
+            --depth-1-color: #388E3C;
+            --depth-1-bg: rgba(56, 142, 60, 0.08);
+            --depth-1-border: rgba(56, 142, 60, 0.5);
+            --depth-2-color: #7B1FA2;
+            --depth-2-bg: rgba(123, 31, 162, 0.08);
+            --depth-2-border: rgba(123, 31, 162, 0.5);
+            --depth-3-color: #E65100;
+            --depth-3-bg: rgba(230, 81, 0, 0.08);
+            --depth-3-border: rgba(230, 81, 0, 0.5);
+            --depth-4-color: #C2185B;
+            --depth-4-bg: rgba(194, 24, 91, 0.08);
+            --depth-4-border: rgba(194, 24, 91, 0.5);
+            --depth-5-color: #00796B;
+            --depth-5-bg: rgba(0, 121, 107, 0.08);
+            --depth-5-border: rgba(0, 121, 107, 0.5);
+        }
+
+        /* Dark mode rainbow colors */
+        [data-theme="dark"] {
+            --depth-0-color: #4FC3F7;
+            --depth-0-bg: rgba(79, 195, 247, 0.12);
+            --depth-0-border: rgba(79, 195, 247, 0.5);
+            --depth-1-color: #81C784;
+            --depth-1-bg: rgba(129, 199, 132, 0.12);
+            --depth-1-border: rgba(129, 199, 132, 0.5);
+            --depth-2-color: #BA68C8;
+            --depth-2-bg: rgba(186, 104, 200, 0.12);
+            --depth-2-border: rgba(186, 104, 200, 0.5);
+            --depth-3-color: #FFB74D;
+            --depth-3-bg: rgba(255, 183, 77, 0.12);
+            --depth-3-border: rgba(255, 183, 77, 0.5);
+            --depth-4-color: #F06292;
+            --depth-4-bg: rgba(240, 98, 146, 0.12);
+            --depth-4-border: rgba(240, 98, 146, 0.5);
+            --depth-5-color: #4DB6AC;
+            --depth-5-bg: rgba(77, 182, 172, 0.12);
+            --depth-5-border: rgba(77, 182, 172, 0.5);
         }
 
         * {
@@ -127,7 +169,7 @@
             display: none;
         }
 
-        /* Sidebar */
+        /* Sidebar - Modern Style */
         .sidebar {
             width: var(--sidebar-width);
             min-width: 200px;
@@ -137,118 +179,330 @@
             overflow-y: auto;
             overflow-x: hidden;
             flex-shrink: 0;
-            transition: width var(--transition-speed) ease,
-                        min-width var(--transition-speed) ease,
-                        opacity var(--transition-speed) ease;
+            transition: width var(--transition-speed) cubic-bezier(0.4, 0, 0.2, 1),
+                        min-width var(--transition-speed) cubic-bezier(0.4, 0, 0.2, 1),
+                        opacity var(--transition-speed) cubic-bezier(0.4, 0, 0.2, 1),
+                        box-shadow var(--transition-speed) ease;
             display: flex;
             flex-direction: column;
+            box-shadow: 2px 0 8px rgba(0, 0, 0, 0.04);
+        }
+        [data-theme="dark"] .sidebar {
+            box-shadow: 2px 0 12px rgba(0, 0, 0, 0.2);
         }
         .sidebar-collapsed .sidebar {
             width: 0;
             min-width: 0;
             opacity: 0;
             border-right: none;
+            box-shadow: none;
         }
 
-        /* Sidebar Header */
+        /* Sidebar Header - Modern Style */
         .sidebar-header {
-            padding: 16px;
+            padding: 18px 16px;
             padding-left: 56px;
-            font-weight: 600;
+            font-weight: 700;
             font-size: 14px;
             color: var(--text-primary);
-            background: var(--sidebar-header-bg);
+            background: linear-gradient(180deg, var(--sidebar-header-bg) 0%, var(--sidebar-bg) 100%);
             border-bottom: 1px solid var(--sidebar-border);
             display: flex;
             align-items: center;
-            gap: 8px;
+            gap: 10px;
             position: sticky;
             top: 0;
             z-index: 10;
+            letter-spacing: 0.02em;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
         }
         .sidebar-header-icon {
-            font-size: 16px;
+            font-size: 18px;
+            filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.1));
         }
 
         /* Sidebar Content */
         .sidebar-content {
-            padding: 8px 0;
+            padding: 12px 4px;
             flex: 1;
         }
 
-        /* Folder */
+        /* Folder - Rainbow Colors by Depth */
         .sidebar-folder {
             user-select: none;
+            position: relative;
         }
         .sidebar-folder-header {
             display: flex;
             align-items: center;
-            padding: 8px 12px;
+            padding: 10px 14px;
             cursor: pointer;
-            color: var(--text-secondary);
             font-size: 13px;
-            font-weight: 500;
-            border-radius: 6px;
-            margin: 2px 8px;
-            transition: background var(--transition-speed) ease;
+            font-weight: 600;
+            border-radius: 10px;
+            margin: 4px 8px;
+            transition: all var(--transition-speed) cubic-bezier(0.4, 0, 0.2, 1);
+            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.06);
+            position: relative;
+            overflow: hidden;
+        }
+        .sidebar-folder-header::before {
+            content: '';
+            position: absolute;
+            left: 0;
+            top: 0;
+            bottom: 0;
+            width: 4px;
+            border-radius: 4px 0 0 4px;
+            transition: width var(--transition-speed) ease;
+        }
+        .sidebar-folder-header:hover::before {
+            width: 6px;
         }
         .sidebar-folder-header:hover {
-            background: var(--hover-bg);
+            transform: translateX(3px);
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+        }
+        .sidebar-folder-header:active {
+            transform: translateX(1px) scale(0.99);
+        }
+        .sidebar-folder-toggle {
+            width: 18px;
+            height: 18px;
+            margin-right: 6px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 10px;
+            transition: transform var(--transition-speed) cubic-bezier(0.4, 0, 0.2, 1);
+            opacity: 0.7;
+        }
+        .sidebar-folder.collapsed .sidebar-folder-toggle {
+            transform: rotate(-90deg);
         }
         .sidebar-folder-icon {
-            width: 16px;
-            height: 16px;
-            margin-right: 6px;
+            width: 18px;
+            height: 18px;
+            margin-right: 8px;
+            flex-shrink: 0;
             transition: transform var(--transition-speed) ease;
-            fill: var(--text-muted);
         }
-        .sidebar-folder.collapsed .sidebar-folder-icon {
-            transform: rotate(-90deg);
+        .sidebar-folder-header:hover .sidebar-folder-icon {
+            transform: scale(1.1);
         }
         .sidebar-folder-name {
             flex: 1;
             overflow: hidden;
             text-overflow: ellipsis;
             white-space: nowrap;
+            letter-spacing: 0.01em;
         }
         .sidebar-folder-items {
             overflow: hidden;
-            transition: max-height 0.3s ease;
-            max-height: 1000px;
+            transition: max-height 0.35s cubic-bezier(0.4, 0, 0.2, 1);
+            max-height: 2000px;
+            margin-left: 16px;
+            padding-left: 12px;
+            position: relative;
+        }
+        /* Indent rainbow line */
+        .sidebar-folder-items::before {
+            content: '';
+            position: absolute;
+            left: 0;
+            top: 4px;
+            bottom: 4px;
+            width: 2px;
+            border-radius: 2px;
+            opacity: 0.6;
+            transition: opacity var(--transition-speed) ease;
+        }
+        .sidebar-folder:hover > .sidebar-folder-items::before {
+            opacity: 1;
         }
         .sidebar-folder.collapsed .sidebar-folder-items {
             max-height: 0;
         }
 
-        /* File Item */
+        /* Depth 0 - Blue */
+        .sidebar-folder[data-depth="0"] > .sidebar-folder-header {
+            color: var(--depth-0-color);
+            background: var(--depth-0-bg);
+        }
+        .sidebar-folder[data-depth="0"] > .sidebar-folder-header::before {
+            background: var(--depth-0-border);
+        }
+        .sidebar-folder[data-depth="0"] > .sidebar-folder-header .sidebar-folder-icon {
+            fill: var(--depth-0-color);
+        }
+        .sidebar-folder[data-depth="0"] > .sidebar-folder-items::before {
+            background: var(--depth-0-border);
+        }
+        .sidebar-folder[data-depth="0"] > .sidebar-folder-header:hover {
+            background: var(--depth-0-bg);
+            box-shadow: 0 4px 12px rgba(2, 136, 209, 0.15);
+        }
+
+        /* Depth 1 - Green */
+        .sidebar-folder[data-depth="1"] > .sidebar-folder-header {
+            color: var(--depth-1-color);
+            background: var(--depth-1-bg);
+        }
+        .sidebar-folder[data-depth="1"] > .sidebar-folder-header::before {
+            background: var(--depth-1-border);
+        }
+        .sidebar-folder[data-depth="1"] > .sidebar-folder-header .sidebar-folder-icon {
+            fill: var(--depth-1-color);
+        }
+        .sidebar-folder[data-depth="1"] > .sidebar-folder-items::before {
+            background: var(--depth-1-border);
+        }
+        .sidebar-folder[data-depth="1"] > .sidebar-folder-header:hover {
+            background: var(--depth-1-bg);
+            box-shadow: 0 4px 12px rgba(56, 142, 60, 0.15);
+        }
+
+        /* Depth 2 - Purple */
+        .sidebar-folder[data-depth="2"] > .sidebar-folder-header {
+            color: var(--depth-2-color);
+            background: var(--depth-2-bg);
+        }
+        .sidebar-folder[data-depth="2"] > .sidebar-folder-header::before {
+            background: var(--depth-2-border);
+        }
+        .sidebar-folder[data-depth="2"] > .sidebar-folder-header .sidebar-folder-icon {
+            fill: var(--depth-2-color);
+        }
+        .sidebar-folder[data-depth="2"] > .sidebar-folder-items::before {
+            background: var(--depth-2-border);
+        }
+        .sidebar-folder[data-depth="2"] > .sidebar-folder-header:hover {
+            background: var(--depth-2-bg);
+            box-shadow: 0 4px 12px rgba(123, 31, 162, 0.15);
+        }
+
+        /* Depth 3 - Orange */
+        .sidebar-folder[data-depth="3"] > .sidebar-folder-header {
+            color: var(--depth-3-color);
+            background: var(--depth-3-bg);
+        }
+        .sidebar-folder[data-depth="3"] > .sidebar-folder-header::before {
+            background: var(--depth-3-border);
+        }
+        .sidebar-folder[data-depth="3"] > .sidebar-folder-header .sidebar-folder-icon {
+            fill: var(--depth-3-color);
+        }
+        .sidebar-folder[data-depth="3"] > .sidebar-folder-items::before {
+            background: var(--depth-3-border);
+        }
+        .sidebar-folder[data-depth="3"] > .sidebar-folder-header:hover {
+            background: var(--depth-3-bg);
+            box-shadow: 0 4px 12px rgba(230, 81, 0, 0.15);
+        }
+
+        /* Depth 4 - Pink */
+        .sidebar-folder[data-depth="4"] > .sidebar-folder-header {
+            color: var(--depth-4-color);
+            background: var(--depth-4-bg);
+        }
+        .sidebar-folder[data-depth="4"] > .sidebar-folder-header::before {
+            background: var(--depth-4-border);
+        }
+        .sidebar-folder[data-depth="4"] > .sidebar-folder-header .sidebar-folder-icon {
+            fill: var(--depth-4-color);
+        }
+        .sidebar-folder[data-depth="4"] > .sidebar-folder-items::before {
+            background: var(--depth-4-border);
+        }
+        .sidebar-folder[data-depth="4"] > .sidebar-folder-header:hover {
+            background: var(--depth-4-bg);
+            box-shadow: 0 4px 12px rgba(194, 24, 91, 0.15);
+        }
+
+        /* Depth 5+ - Teal */
+        .sidebar-folder[data-depth="5"] > .sidebar-folder-header,
+        .sidebar-folder:not([data-depth="0"]):not([data-depth="1"]):not([data-depth="2"]):not([data-depth="3"]):not([data-depth="4"]):not([data-depth="5"]) > .sidebar-folder-header {
+            color: var(--depth-5-color);
+            background: var(--depth-5-bg);
+        }
+        .sidebar-folder[data-depth="5"] > .sidebar-folder-header::before,
+        .sidebar-folder:not([data-depth="0"]):not([data-depth="1"]):not([data-depth="2"]):not([data-depth="3"]):not([data-depth="4"]):not([data-depth="5"]) > .sidebar-folder-header::before {
+            background: var(--depth-5-border);
+        }
+        .sidebar-folder[data-depth="5"] > .sidebar-folder-header .sidebar-folder-icon,
+        .sidebar-folder:not([data-depth="0"]):not([data-depth="1"]):not([data-depth="2"]):not([data-depth="3"]):not([data-depth="4"]):not([data-depth="5"]) > .sidebar-folder-header .sidebar-folder-icon {
+            fill: var(--depth-5-color);
+        }
+        .sidebar-folder[data-depth="5"] > .sidebar-folder-items::before,
+        .sidebar-folder:not([data-depth="0"]):not([data-depth="1"]):not([data-depth="2"]):not([data-depth="3"]):not([data-depth="4"]):not([data-depth="5"]) > .sidebar-folder-items::before {
+            background: var(--depth-5-border);
+        }
+        .sidebar-folder[data-depth="5"] > .sidebar-folder-header:hover,
+        .sidebar-folder:not([data-depth="0"]):not([data-depth="1"]):not([data-depth="2"]):not([data-depth="3"]):not([data-depth="4"]):not([data-depth="5"]) > .sidebar-folder-header:hover {
+            background: var(--depth-5-bg);
+            box-shadow: 0 4px 12px rgba(0, 121, 107, 0.15);
+        }
+
+        /* File Item - Modern Style with Depth Colors */
         .sidebar-item {
             display: flex;
             align-items: center;
-            padding: 8px 12px 8px 32px;
+            padding: 10px 14px 10px 20px;
             color: var(--text-primary);
             text-decoration: none;
-            font-size: 14px;
+            font-size: 13px;
             cursor: pointer;
-            border-radius: 6px;
-            margin: 2px 8px;
+            border-radius: 8px;
+            margin: 3px 8px;
+            transition: all var(--transition-speed) cubic-bezier(0.4, 0, 0.2, 1);
+            position: relative;
+            overflow: hidden;
+            background: transparent;
+        }
+        .sidebar-item::before {
+            content: '';
+            position: absolute;
+            left: 0;
+            top: 0;
+            bottom: 0;
+            width: 3px;
+            border-radius: 3px 0 0 3px;
+            opacity: 0;
             transition: all var(--transition-speed) ease;
-            border-left: 2px solid transparent;
         }
         .sidebar-item:hover {
             background: var(--hover-bg);
+            transform: translateX(3px);
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
+        }
+        .sidebar-item:hover::before {
+            opacity: 0.6;
+            background: var(--text-muted);
+        }
+        .sidebar-item:active {
+            transform: translateX(1px) scale(0.99);
         }
         .sidebar-item.active {
             background: var(--accent-bg);
-            border-left-color: var(--accent-color);
             color: var(--accent-color);
-            font-weight: 500;
+            font-weight: 600;
+            box-shadow: 0 2px 8px rgba(9, 105, 218, 0.12);
+        }
+        .sidebar-item.active::before {
+            opacity: 1;
+            background: var(--accent-color);
+            width: 4px;
         }
         .sidebar-item-icon {
             width: 16px;
             height: 16px;
-            margin-right: 8px;
+            margin-right: 10px;
             fill: var(--text-muted);
             flex-shrink: 0;
+            transition: all var(--transition-speed) ease;
+        }
+        .sidebar-item:hover .sidebar-item-icon {
+            transform: scale(1.1);
         }
         .sidebar-item.active .sidebar-item-icon {
             fill: var(--accent-color);
@@ -257,11 +511,32 @@
             overflow: hidden;
             text-overflow: ellipsis;
             white-space: nowrap;
+            letter-spacing: 0.01em;
         }
 
         /* Root level items (no folder) */
         .sidebar-item.root-item {
-            padding-left: 12px;
+            padding-left: 14px;
+        }
+
+        /* File items inherit depth color from parent folder */
+        .sidebar-folder[data-depth="0"] .sidebar-item:hover::before {
+            background: var(--depth-0-border);
+        }
+        .sidebar-folder[data-depth="1"] .sidebar-item:hover::before {
+            background: var(--depth-1-border);
+        }
+        .sidebar-folder[data-depth="2"] .sidebar-item:hover::before {
+            background: var(--depth-2-border);
+        }
+        .sidebar-folder[data-depth="3"] .sidebar-item:hover::before {
+            background: var(--depth-3-border);
+        }
+        .sidebar-folder[data-depth="4"] .sidebar-item:hover::before {
+            background: var(--depth-4-border);
+        }
+        .sidebar-folder[data-depth="5"] .sidebar-item:hover::before {
+            background: var(--depth-5-border);
         }
 
         /* Resizer */
@@ -548,7 +823,8 @@
         // SVG Icons
         const icons = {
             file: '<svg class="sidebar-item-icon" viewBox="0 0 16 16"><path d="M2 1.75C2 .784 2.784 0 3.75 0h6.586c.464 0 .909.184 1.237.513l2.914 2.914c.329.328.513.773.513 1.237v9.586A1.75 1.75 0 0 1 13.25 16h-9.5A1.75 1.75 0 0 1 2 14.25Zm1.75-.25a.25.25 0 0 0-.25.25v12.5c0 .138.112.25.25.25h9.5a.25.25 0 0 0 .25-.25V6h-2.75A1.75 1.75 0 0 1 9 4.25V1.5Zm6.75.062V4.25c0 .138.112.25.25.25h2.688l-.011-.013-2.914-2.914-.013-.011Z"/></svg>',
-            chevron: '<svg class="sidebar-folder-icon" viewBox="0 0 16 16"><path d="M12.78 5.22a.749.749 0 0 1 0 1.06l-4.25 4.25a.749.749 0 0 1-1.06 0L3.22 6.28a.749.749 0 1 1 1.06-1.06L8 8.939l3.72-3.719a.749.749 0 0 1 1.06 0Z"/></svg>'
+            toggle: '<span class="sidebar-folder-toggle">▼</span>',
+            folder: '<svg class="sidebar-folder-icon" viewBox="0 0 16 16"><path d="M1.75 1A1.75 1.75 0 0 0 0 2.75v10.5C0 14.216.784 15 1.75 15h12.5A1.75 1.75 0 0 0 16 13.25v-8.5A1.75 1.75 0 0 0 14.25 3H7.5a.25.25 0 0 1-.2-.1l-.9-1.2C6.07 1.26 5.55 1 5 1H1.75Z"/></svg>'
         };
 
         // State
@@ -637,43 +913,86 @@
                 const data = await response.json();
                 const sidebarContent = document.querySelector('.sidebar-content');
 
-                // Group files by directory
-                const dirs = {};
+                // Build hierarchical tree structure
+                const tree = {};
                 data.files.forEach(file => {
-                    const lastSlash = file.path.lastIndexOf('/');
-                    const dir = lastSlash === -1 ? '' : file.path.substring(0, lastSlash);
-                    if (!dirs[dir]) dirs[dir] = [];
-                    dirs[dir].push(file);
+                    const parts = file.path.split('/');
+                    let current = tree;
+                    for (let i = 0; i < parts.length - 1; i++) {
+                        const part = parts[i];
+                        if (!current[part]) {
+                            current[part] = { __files: [], __folders: {} };
+                        }
+                        current = current[part].__folders;
+                    }
+                    if (!current.__files) {
+                        current.__files = [];
+                    }
+                    current.__files = current.__files || [];
+                    // Store at root level or in folder
+                    if (parts.length === 1) {
+                        if (!tree.__rootFiles) tree.__rootFiles = [];
+                        tree.__rootFiles.push(file);
+                    } else {
+                        // Navigate to correct folder
+                        let folder = tree;
+                        for (let i = 0; i < parts.length - 1; i++) {
+                            folder = folder[parts[i]];
+                            if (i < parts.length - 2) {
+                                folder = folder.__folders;
+                            }
+                        }
+                        if (!folder.__files) folder.__files = [];
+                        folder.__files.push(file);
+                    }
                 });
+
+                // Recursive function to build HTML
+                function buildFolderHtml(folderData, folderName, parentPath, depth) {
+                    const folderId = (parentPath ? parentPath + '_' : '') + folderName.replace(/\//g, '_').replace(/\\/g, '_');
+                    const isCollapsed = collapsedFolders[folderId] ? ' collapsed' : '';
+
+                    let html = `<div class="sidebar-folder${isCollapsed}" data-folder="${escapeHtml(folderId)}" data-depth="${depth}">
+                        <div class="sidebar-folder-header" onclick="toggleFolder('${escapeHtml(folderId)}')">
+                            ${icons.toggle}
+                            ${icons.folder}
+                            <span class="sidebar-folder-name">${escapeHtml(folderName)}</span>
+                        </div>
+                        <div class="sidebar-folder-items">`;
+
+                    // Add files in this folder
+                    if (folderData.__files) {
+                        folderData.__files.forEach(file => {
+                            const isActive = file.path === currentFile;
+                            html += `<a href="javascript:void(0)" class="sidebar-item${isActive ? ' active' : ''}" data-path="${escapeHtml(file.path)}" data-depth="${depth + 1}" onclick="loadFile('${escapeHtml(file.path)}')">${icons.file}<span class="sidebar-item-name">${escapeHtml(file.name)}</span></a>`;
+                        });
+                    }
+
+                    // Add subfolders
+                    if (folderData.__folders) {
+                        Object.keys(folderData.__folders).sort().forEach(subFolder => {
+                            html += buildFolderHtml(folderData.__folders[subFolder], subFolder, folderId, depth + 1);
+                        });
+                    }
+
+                    html += '</div></div>';
+                    return html;
+                }
 
                 // Build sidebar HTML
                 let html = '';
-                const sortedDirs = Object.keys(dirs).sort();
 
-                sortedDirs.forEach(dir => {
-                    const files = dirs[dir];
-                    if (dir === '') {
-                        // Root level files
-                        files.forEach(file => {
-                            const isActive = file.path === currentFile;
-                            html += `<a href="javascript:void(0)" class="sidebar-item root-item${isActive ? ' active' : ''}" data-path="${escapeHtml(file.path)}" onclick="loadFile('${escapeHtml(file.path)}')">${icons.file}<span class="sidebar-item-name">${escapeHtml(file.name)}</span></a>`;
-                        });
-                    } else {
-                        // Files in a folder
-                        const folderId = dir.replace(/\//g, '_').replace(/\\/g, '_');
-                        const isCollapsed = collapsedFolders[folderId] ? ' collapsed' : '';
-                        html += `<div class="sidebar-folder${isCollapsed}" data-folder="${escapeHtml(folderId)}">
-                            <div class="sidebar-folder-header" onclick="toggleFolder('${escapeHtml(folderId)}')">
-                                ${icons.chevron}
-                                <span class="sidebar-folder-name">${escapeHtml(dir)}</span>
-                            </div>
-                            <div class="sidebar-folder-items">`;
-                        files.forEach(file => {
-                            const isActive = file.path === currentFile;
-                            html += `<a href="javascript:void(0)" class="sidebar-item${isActive ? ' active' : ''}" data-path="${escapeHtml(file.path)}" onclick="loadFile('${escapeHtml(file.path)}')">${icons.file}<span class="sidebar-item-name">${escapeHtml(file.name)}</span></a>`;
-                        });
-                        html += '</div></div>';
-                    }
+                // Root level files first
+                if (tree.__rootFiles) {
+                    tree.__rootFiles.forEach(file => {
+                        const isActive = file.path === currentFile;
+                        html += `<a href="javascript:void(0)" class="sidebar-item root-item${isActive ? ' active' : ''}" data-path="${escapeHtml(file.path)}" data-depth="0" onclick="loadFile('${escapeHtml(file.path)}')">${icons.file}<span class="sidebar-item-name">${escapeHtml(file.name)}</span></a>`;
+                    });
+                }
+
+                // Folders
+                Object.keys(tree).filter(k => k !== '__rootFiles').sort().forEach(folderName => {
+                    html += buildFolderHtml(tree[folderName], folderName, '', 0);
                 });
 
                 sidebarContent.innerHTML = html;

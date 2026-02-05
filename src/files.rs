@@ -1,3 +1,4 @@
+use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
 use walkdir::WalkDir;
 
@@ -10,6 +11,16 @@ pub struct MarkdownFile {
     pub relative_path: PathBuf,
     /// Display name (filename without extension)
     pub name: String,
+}
+
+/// Represents a node in the file tree hierarchy
+#[derive(Debug, Clone)]
+pub enum TreeNode {
+    File(MarkdownFile),
+    Folder {
+        name: String,
+        children: Vec<TreeNode>,
+    },
 }
 
 /// Represents a directory structure of markdown files
@@ -182,6 +193,95 @@ impl FileTree {
     pub fn is_single_file(&self) -> bool {
         self.files.len() == 1
     }
+
+    /// Build a hierarchical tree structure from the flat file list
+    pub fn build_tree(&self) -> Vec<TreeNode> {
+        // Use BTreeMap to maintain sorted order for folders
+        // Key: folder path components, Value: nested structure
+        let mut root_files: Vec<TreeNode> = Vec::new();
+        let mut folders: BTreeMap<String, FolderBuilder> = BTreeMap::new();
+
+        for file in &self.files {
+            let components: Vec<&str> = file
+                .relative_path
+                .components()
+                .filter_map(|c| c.as_os_str().to_str())
+                .collect();
+
+            if components.len() == 1 {
+                // Root level file
+                root_files.push(TreeNode::File(file.clone()));
+            } else {
+                // File in a subdirectory
+                let folder_path = &components[..components.len() - 1];
+                Self::insert_into_folder(&mut folders, folder_path, file.clone());
+            }
+        }
+
+        // Build the final tree: root files first, then folders
+        let mut result = root_files;
+        for (name, builder) in folders {
+            result.push(builder.into_tree_node(name));
+        }
+
+        result
+    }
+
+    /// Helper function to insert a file into the nested folder structure
+    fn insert_into_folder(
+        folders: &mut BTreeMap<String, FolderBuilder>,
+        path: &[&str],
+        file: MarkdownFile,
+    ) {
+        if path.is_empty() {
+            return;
+        }
+
+        let first = path[0].to_string();
+        let rest = &path[1..];
+
+        let folder = folders.entry(first).or_insert_with(FolderBuilder::new);
+
+        if rest.is_empty() {
+            // File belongs directly in this folder
+            folder.files.push(file);
+        } else {
+            // File belongs in a subfolder
+            Self::insert_into_folder(&mut folder.subfolders, rest, file);
+        }
+    }
+}
+
+/// Helper struct for building folder hierarchy
+#[derive(Debug)]
+struct FolderBuilder {
+    files: Vec<MarkdownFile>,
+    subfolders: BTreeMap<String, FolderBuilder>,
+}
+
+impl FolderBuilder {
+    fn new() -> Self {
+        Self {
+            files: Vec::new(),
+            subfolders: BTreeMap::new(),
+        }
+    }
+
+    fn into_tree_node(self, name: String) -> TreeNode {
+        let mut children: Vec<TreeNode> = Vec::new();
+
+        // Add files first
+        for file in self.files {
+            children.push(TreeNode::File(file));
+        }
+
+        // Then add subfolders
+        for (subfolder_name, builder) in self.subfolders {
+            children.push(builder.into_tree_node(subfolder_name));
+        }
+
+        TreeNode::Folder { name, children }
+    }
 }
 
 #[cfg(test)]
@@ -208,5 +308,62 @@ mod tests {
         assert_eq!(tree.files.len(), 3);
         // README should be first
         assert_eq!(tree.files[0].name, "README");
+    }
+
+    #[test]
+    fn test_build_tree_nested_directories() {
+        let dir = tempdir().unwrap();
+
+        // Create nested structure:
+        // root.md
+        // docs/
+        //   guide.md
+        //   api/
+        //     reference.md
+        //     advanced/
+        //       deep.md
+        let root = dir.path().join("root.md");
+        let docs = dir.path().join("docs");
+        let api = docs.join("api");
+        let advanced = api.join("advanced");
+
+        fs::create_dir_all(&advanced).unwrap();
+        fs::write(&root, "# Root").unwrap();
+        fs::write(docs.join("guide.md"), "# Guide").unwrap();
+        fs::write(api.join("reference.md"), "# Reference").unwrap();
+        fs::write(advanced.join("deep.md"), "# Deep").unwrap();
+
+        let file_tree = FileTree::from_directory(dir.path()).unwrap();
+        let tree = file_tree.build_tree();
+
+        // Should have root file and docs folder at top level
+        assert_eq!(tree.len(), 2);
+
+        // First should be root.md (file)
+        match &tree[0] {
+            TreeNode::File(f) => assert_eq!(f.name, "root"),
+            _ => panic!("Expected file at root level"),
+        }
+
+        // Second should be docs folder
+        match &tree[1] {
+            TreeNode::Folder { name, children } => {
+                assert_eq!(name, "docs");
+                assert_eq!(children.len(), 2); // guide.md and api folder
+
+                // Check for api subfolder
+                let api_folder = children.iter().find(|c| matches!(c, TreeNode::Folder { name, .. } if name == "api"));
+                assert!(api_folder.is_some(), "Should have api subfolder");
+
+                if let Some(TreeNode::Folder { children: api_children, .. }) = api_folder {
+                    // api should contain reference.md and advanced folder
+                    assert_eq!(api_children.len(), 2);
+
+                    let advanced_folder = api_children.iter().find(|c| matches!(c, TreeNode::Folder { name, .. } if name == "advanced"));
+                    assert!(advanced_folder.is_some(), "Should have advanced subfolder");
+                }
+            }
+            _ => panic!("Expected folder at root level"),
+        }
     }
 }

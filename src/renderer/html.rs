@@ -1,14 +1,33 @@
-use crate::files::FileTree;
+use crate::files::{FileTree, TreeNode};
 use crate::parser::AnchorGenerator;
 use pulldown_cmark::{CowStr, Event, HeadingLevel, Options, Parser, Tag, TagEnd, html};
+use regex::Regex;
+use std::sync::LazyLock;
 
 const TEMPLATE: &str = include_str!("../../assets/template.html");
+
+/// Regex pattern for emoji shortcodes like :smile:
+static EMOJI_PATTERN: LazyLock<Regex> =
+    LazyLock::new(|| Regex::new(r":([a-zA-Z0-9_+-]+):").expect("Invalid emoji regex"));
+
+/// Convert emoji shortcodes in text to actual emoji characters
+fn convert_emoji_shortcodes(text: &str) -> String {
+    EMOJI_PATTERN
+        .replace_all(text, |caps: &regex::Captures| {
+            let shortcode = &caps[1];
+            emojis::get_by_shortcode(shortcode)
+                .map(|e| e.as_str().to_string())
+                .unwrap_or_else(|| caps[0].to_string())
+        })
+        .to_string()
+}
 const TEMPLATE_SIDEBAR: &str = include_str!("../../assets/template_sidebar.html");
 const CSS: &str = include_str!("../../assets/github.css");
 
 // SVG icons for the sidebar
 const ICON_FILE: &str = r#"<svg class="sidebar-item-icon" viewBox="0 0 16 16"><path d="M2 1.75C2 .784 2.784 0 3.75 0h6.586c.464 0 .909.184 1.237.513l2.914 2.914c.329.328.513.773.513 1.237v9.586A1.75 1.75 0 0 1 13.25 16h-9.5A1.75 1.75 0 0 1 2 14.25Zm1.75-.25a.25.25 0 0 0-.25.25v12.5c0 .138.112.25.25.25h9.5a.25.25 0 0 0 .25-.25V6h-2.75A1.75 1.75 0 0 1 9 4.25V1.5Zm6.75.062V4.25c0 .138.112.25.25.25h2.688l-.011-.013-2.914-2.914-.013-.011Z"/></svg>"#;
-const ICON_CHEVRON: &str = r#"<svg class="sidebar-folder-icon" viewBox="0 0 16 16"><path d="M12.78 5.22a.749.749 0 0 1 0 1.06l-4.25 4.25a.749.749 0 0 1-1.06 0L3.22 6.28a.749.749 0 1 1 1.06-1.06L8 8.939l3.72-3.719a.749.749 0 0 1 1.06 0Z"/></svg>"#;
+const ICON_TOGGLE: &str = r#"<span class="sidebar-folder-toggle">▼</span>"#;
+const ICON_FOLDER: &str = r#"<svg class="sidebar-folder-icon" viewBox="0 0 16 16"><path d="M1.75 1A1.75 1.75 0 0 0 0 2.75v10.5C0 14.216.784 15 1.75 15h12.5A1.75 1.75 0 0 0 16 13.25v-8.5A1.75 1.75 0 0 0 14.25 3H7.5a.25.25 0 0 1-.2-.1l-.9-1.2C6.07 1.26 5.55 1 5 1H1.75Z"/></svg>"#;
 
 pub struct HtmlRenderer {
     title: String,
@@ -61,52 +80,62 @@ impl HtmlRenderer {
     /// Build sidebar HTML from file tree
     fn build_sidebar(&self, file_tree: &FileTree, current_file: Option<&str>) -> String {
         let mut html = String::new();
+        let tree = file_tree.build_tree();
 
-        // Group files by directory
-        let mut dirs: std::collections::BTreeMap<String, Vec<&crate::files::MarkdownFile>> =
-            std::collections::BTreeMap::new();
-
-        for file in &file_tree.files {
-            let parent = file
-                .relative_path
-                .parent()
-                .map(|p| p.to_string_lossy().to_string())
-                .unwrap_or_default();
-            dirs.entry(parent).or_default().push(file);
+        for node in &tree {
+            self.render_tree_node(node, current_file, &mut html, "", 0);
         }
 
-        // Render file tree
-        for (dir, files) in &dirs {
-            if dir.is_empty() {
-                // Root level files
-                for file in files {
-                    html.push_str(&self.render_file_item(file, current_file, true));
-                }
-            } else {
-                // Files in a folder
-                let folder_id = dir.replace(['/', '\\'], "_");
+        html
+    }
+
+    /// Recursively render a tree node to HTML
+    fn render_tree_node(
+        &self,
+        node: &TreeNode,
+        current_file: Option<&str>,
+        html: &mut String,
+        parent_path: &str,
+        depth: usize,
+    ) {
+        match node {
+            TreeNode::File(file) => {
+                let is_root = parent_path.is_empty();
+                html.push_str(&self.render_file_item(file, current_file, is_root, depth));
+            }
+            TreeNode::Folder { name, children } => {
+                // Build full folder path for unique ID
+                let folder_path = if parent_path.is_empty() {
+                    name.clone()
+                } else {
+                    format!("{}/{}", parent_path, name)
+                };
+                let folder_id = folder_path.replace(['/', '\\'], "_");
+
                 html.push_str(&format!(
-                    r#"<div class="sidebar-folder" data-folder="{}">
+                    r#"<div class="sidebar-folder" data-folder="{}" data-depth="{}">
                         <div class="sidebar-folder-header" onclick="toggleFolder('{}')">
+                            {}
                             {}
                             <span class="sidebar-folder-name">{}</span>
                         </div>
                         <div class="sidebar-folder-items">"#,
                     html_escape::encode_text(&folder_id),
+                    depth,
                     html_escape::encode_text(&folder_id),
-                    ICON_CHEVRON,
-                    html_escape::encode_text(dir)
+                    ICON_TOGGLE,
+                    ICON_FOLDER,
+                    html_escape::encode_text(name)
                 ));
 
-                for file in files {
-                    html.push_str(&self.render_file_item(file, current_file, false));
+                // Recursively render children with increased depth
+                for child in children {
+                    self.render_tree_node(child, current_file, html, &folder_path, depth + 1);
                 }
 
                 html.push_str("</div></div>");
             }
         }
-
-        html
     }
 
     /// Render a single file item in the sidebar
@@ -115,6 +144,7 @@ impl HtmlRenderer {
         file: &crate::files::MarkdownFile,
         current_file: Option<&str>,
         is_root: bool,
+        depth: usize,
     ) -> String {
         let path = file.relative_path.to_string_lossy();
         let is_current = current_file.is_some_and(|c| c == path);
@@ -128,12 +158,13 @@ impl HtmlRenderer {
         }
 
         format!(
-            r#"<a href="javascript:void(0)" class="{}" data-path="{}" onclick="loadFile('{}')">
+            r#"<a href="javascript:void(0)" class="{}" data-path="{}" data-depth="{}" onclick="loadFile('{}')">
                 {}
                 <span class="sidebar-item-name">{}</span>
             </a>"#,
             classes.join(" "),
             html_escape::encode_text(&path),
+            depth,
             html_escape::encode_text(&path),
             ICON_FILE,
             html_escape::encode_text(&file.name)
@@ -221,7 +252,11 @@ impl HtmlRenderer {
                 }
                 Event::Text(text) if in_heading => {
                     current_heading_text.push_str(text);
-                    current_heading_events.push(event);
+                    // Convert emoji shortcodes in heading text
+                    let converted = convert_emoji_shortcodes(text);
+                    let converted_event =
+                        Event::Text(CowStr::Boxed(converted.into_boxed_str()));
+                    current_heading_events.push(converted_event);
                 }
                 Event::Code(code) if in_heading => {
                     current_heading_text.push_str(code);
@@ -257,6 +292,17 @@ impl HtmlRenderer {
                         footnote_events.push(html_event);
                     } else {
                         main_events.push(html_event);
+                    }
+                }
+                // Convert emoji shortcodes in text events (not in heading, handled above)
+                Event::Text(text) => {
+                    let converted = convert_emoji_shortcodes(text);
+                    let converted_event =
+                        Event::Text(CowStr::Boxed(converted.into_boxed_str()));
+                    if in_footnote {
+                        footnote_events.push(converted_event);
+                    } else {
+                        main_events.push(converted_event);
                     }
                 }
                 _ => {
@@ -491,5 +537,34 @@ graph TD
                 );
             }
         }
+    }
+
+    #[test]
+    fn test_emoji_shortcode_conversion() {
+        let renderer = HtmlRenderer::new("Test");
+        let result = renderer.render(":smile: Hello :+1: World :rocket:");
+        // Check emoji conversion
+        assert!(result.contains("😄"), "Should convert :smile: to 😄");
+        assert!(result.contains("👍"), "Should convert :+1: to 👍");
+        assert!(result.contains("🚀"), "Should convert :rocket: to 🚀");
+    }
+
+    #[test]
+    fn test_emoji_in_heading() {
+        let renderer = HtmlRenderer::new("Test");
+        let result = renderer.render("# :rocket: Launch");
+        assert!(result.contains("🚀"), "Should convert emoji in heading");
+        assert!(result.contains("<h1"), "Should have h1 tag");
+    }
+
+    #[test]
+    fn test_emoji_invalid_shortcode() {
+        let renderer = HtmlRenderer::new("Test");
+        let result = renderer.render(":invalid_emoji_xyz:");
+        // Invalid shortcode should remain unchanged
+        assert!(
+            result.contains(":invalid_emoji_xyz:"),
+            "Invalid shortcode should remain as-is"
+        );
     }
 }
