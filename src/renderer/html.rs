@@ -254,8 +254,7 @@ impl HtmlRenderer {
                     current_heading_text.push_str(text);
                     // Convert emoji shortcodes in heading text
                     let converted = convert_emoji_shortcodes(text);
-                    let converted_event =
-                        Event::Text(CowStr::Boxed(converted.into_boxed_str()));
+                    let converted_event = Event::Text(CowStr::Boxed(converted.into_boxed_str()));
                     current_heading_events.push(converted_event);
                 }
                 Event::Code(code) if in_heading => {
@@ -297,8 +296,7 @@ impl HtmlRenderer {
                 // Convert emoji shortcodes in text events (not in heading, handled above)
                 Event::Text(text) => {
                     let converted = convert_emoji_shortcodes(text);
-                    let converted_event =
-                        Event::Text(CowStr::Boxed(converted.into_boxed_str()));
+                    let converted_event = Event::Text(CowStr::Boxed(converted.into_boxed_str()));
                     if in_footnote {
                         footnote_events.push(converted_event);
                     } else {
