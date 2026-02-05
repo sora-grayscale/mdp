@@ -179,31 +179,61 @@
         /* Folder */
         .sidebar-folder {
             user-select: none;
+            --folder-color: #9a6700;
+            --folder-color-dark: #e3b341;
+            --folder-bg: rgba(154, 103, 0, 0.08);
+            --folder-bg-dark: rgba(227, 179, 65, 0.1);
+            --folder-border: rgba(154, 103, 0, 0.4);
+            --folder-border-dark: rgba(227, 179, 65, 0.4);
         }
         .sidebar-folder-header {
             display: flex;
             align-items: center;
             padding: 8px 12px;
             cursor: pointer;
-            color: var(--text-secondary);
+            color: var(--folder-color);
             font-size: 13px;
-            font-weight: 500;
+            font-weight: 600;
             border-radius: 6px;
             margin: 2px 8px;
-            transition: background var(--transition-speed) ease;
+            background: var(--folder-bg);
+            border-left: 3px solid var(--folder-border);
+            transition: all var(--transition-speed) ease;
+        }
+        [data-theme="dark"] .sidebar-folder-header {
+            color: var(--folder-color-dark);
+            background: var(--folder-bg-dark);
+            border-left-color: var(--folder-border-dark);
         }
         .sidebar-folder-header:hover {
-            background: var(--hover-bg);
+            background: rgba(154, 103, 0, 0.15);
+            transform: translateX(2px);
+        }
+        [data-theme="dark"] .sidebar-folder-header:hover {
+            background: rgba(227, 179, 65, 0.18);
+        }
+        .sidebar-folder-toggle {
+            width: 16px;
+            height: 16px;
+            margin-right: 4px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 10px;
+            transition: transform var(--transition-speed) ease;
+        }
+        .sidebar-folder.collapsed .sidebar-folder-toggle {
+            transform: rotate(-90deg);
         }
         .sidebar-folder-icon {
             width: 16px;
             height: 16px;
             margin-right: 6px;
-            transition: transform var(--transition-speed) ease;
-            fill: var(--text-muted);
+            fill: var(--folder-color);
+            flex-shrink: 0;
         }
-        .sidebar-folder.collapsed .sidebar-folder-icon {
-            transform: rotate(-90deg);
+        [data-theme="dark"] .sidebar-folder-icon {
+            fill: var(--folder-color-dark);
         }
         .sidebar-folder-name {
             flex: 1;
@@ -214,17 +244,24 @@
         .sidebar-folder-items {
             overflow: hidden;
             transition: max-height 0.3s ease;
-            max-height: 1000px;
+            max-height: 2000px;
+            margin-left: 12px;
+            padding-left: 8px;
+            border-left: 1px dashed var(--sidebar-border);
         }
         .sidebar-folder.collapsed .sidebar-folder-items {
             max-height: 0;
+        }
+        /* Nested folder indentation */
+        .sidebar-folder-items .sidebar-folder-items {
+            margin-left: 8px;
         }
 
         /* File Item */
         .sidebar-item {
             display: flex;
             align-items: center;
-            padding: 8px 12px 8px 32px;
+            padding: 8px 12px 8px 24px;
             color: var(--text-primary);
             text-decoration: none;
             font-size: 14px;
@@ -236,6 +273,8 @@
         }
         .sidebar-item:hover {
             background: var(--hover-bg);
+            transform: translateX(2px);
+            border-left-color: var(--text-muted);
         }
         .sidebar-item.active {
             background: var(--accent-bg);
@@ -548,7 +587,8 @@
         // SVG Icons
         const icons = {
             file: '<svg class="sidebar-item-icon" viewBox="0 0 16 16"><path d="M2 1.75C2 .784 2.784 0 3.75 0h6.586c.464 0 .909.184 1.237.513l2.914 2.914c.329.328.513.773.513 1.237v9.586A1.75 1.75 0 0 1 13.25 16h-9.5A1.75 1.75 0 0 1 2 14.25Zm1.75-.25a.25.25 0 0 0-.25.25v12.5c0 .138.112.25.25.25h9.5a.25.25 0 0 0 .25-.25V6h-2.75A1.75 1.75 0 0 1 9 4.25V1.5Zm6.75.062V4.25c0 .138.112.25.25.25h2.688l-.011-.013-2.914-2.914-.013-.011Z"/></svg>',
-            chevron: '<svg class="sidebar-folder-icon" viewBox="0 0 16 16"><path d="M12.78 5.22a.749.749 0 0 1 0 1.06l-4.25 4.25a.749.749 0 0 1-1.06 0L3.22 6.28a.749.749 0 1 1 1.06-1.06L8 8.939l3.72-3.719a.749.749 0 0 1 1.06 0Z"/></svg>'
+            toggle: '<span class="sidebar-folder-toggle">▼</span>',
+            folder: '<svg class="sidebar-folder-icon" viewBox="0 0 16 16"><path d="M1.75 1A1.75 1.75 0 0 0 0 2.75v10.5C0 14.216.784 15 1.75 15h12.5A1.75 1.75 0 0 0 16 13.25v-8.5A1.75 1.75 0 0 0 14.25 3H7.5a.25.25 0 0 1-.2-.1l-.9-1.2C6.07 1.26 5.55 1 5 1H1.75Z"/></svg>'
         };
 
         // State
@@ -664,7 +704,8 @@
                         const isCollapsed = collapsedFolders[folderId] ? ' collapsed' : '';
                         html += `<div class="sidebar-folder${isCollapsed}" data-folder="${escapeHtml(folderId)}">
                             <div class="sidebar-folder-header" onclick="toggleFolder('${escapeHtml(folderId)}')">
-                                ${icons.chevron}
+                                ${icons.toggle}
+                                ${icons.folder}
                                 <span class="sidebar-folder-name">${escapeHtml(dir)}</span>
                             </div>
                             <div class="sidebar-folder-items">`;
