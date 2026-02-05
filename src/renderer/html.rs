@@ -83,7 +83,7 @@ impl HtmlRenderer {
         let tree = file_tree.build_tree();
 
         for node in &tree {
-            self.render_tree_node(node, current_file, &mut html, "");
+            self.render_tree_node(node, current_file, &mut html, "", 0);
         }
 
         html
@@ -96,11 +96,12 @@ impl HtmlRenderer {
         current_file: Option<&str>,
         html: &mut String,
         parent_path: &str,
+        depth: usize,
     ) {
         match node {
             TreeNode::File(file) => {
                 let is_root = parent_path.is_empty();
-                html.push_str(&self.render_file_item(file, current_file, is_root));
+                html.push_str(&self.render_file_item(file, current_file, is_root, depth));
             }
             TreeNode::Folder { name, children } => {
                 // Build full folder path for unique ID
@@ -112,7 +113,7 @@ impl HtmlRenderer {
                 let folder_id = folder_path.replace(['/', '\\'], "_");
 
                 html.push_str(&format!(
-                    r#"<div class="sidebar-folder" data-folder="{}">
+                    r#"<div class="sidebar-folder" data-folder="{}" data-depth="{}">
                         <div class="sidebar-folder-header" onclick="toggleFolder('{}')">
                             {}
                             {}
@@ -120,15 +121,16 @@ impl HtmlRenderer {
                         </div>
                         <div class="sidebar-folder-items">"#,
                     html_escape::encode_text(&folder_id),
+                    depth,
                     html_escape::encode_text(&folder_id),
                     ICON_TOGGLE,
                     ICON_FOLDER,
                     html_escape::encode_text(name)
                 ));
 
-                // Recursively render children
+                // Recursively render children with increased depth
                 for child in children {
-                    self.render_tree_node(child, current_file, html, &folder_path);
+                    self.render_tree_node(child, current_file, html, &folder_path, depth + 1);
                 }
 
                 html.push_str("</div></div>");
@@ -142,6 +144,7 @@ impl HtmlRenderer {
         file: &crate::files::MarkdownFile,
         current_file: Option<&str>,
         is_root: bool,
+        depth: usize,
     ) -> String {
         let path = file.relative_path.to_string_lossy();
         let is_current = current_file.is_some_and(|c| c == path);
@@ -155,12 +158,13 @@ impl HtmlRenderer {
         }
 
         format!(
-            r#"<a href="javascript:void(0)" class="{}" data-path="{}" onclick="loadFile('{}')">
+            r#"<a href="javascript:void(0)" class="{}" data-path="{}" data-depth="{}" onclick="loadFile('{}')">
                 {}
                 <span class="sidebar-item-name">{}</span>
             </a>"#,
             classes.join(" "),
             html_escape::encode_text(&path),
+            depth,
             html_escape::encode_text(&path),
             ICON_FILE,
             html_escape::encode_text(&file.name)
