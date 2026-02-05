@@ -1,6 +1,8 @@
 use crossterm::execute;
 use crossterm::style::{Attribute, Color, ResetColor, SetAttribute, SetForegroundColor};
+use regex::Regex;
 use std::io::{self, Write};
+use std::sync::LazyLock;
 use syntect::easy::HighlightLines;
 use syntect::highlighting::{Style, ThemeSet};
 use syntect::parsing::SyntaxSet;
@@ -10,6 +12,22 @@ use unicode_width::UnicodeWidthStr;
 use crate::parser::{
     Alignment, Document, Element, InlineElement, ListItem, TocEntry, generate_toc,
 };
+
+/// Regex pattern for emoji shortcodes like :smile:
+static EMOJI_PATTERN: LazyLock<Regex> =
+    LazyLock::new(|| Regex::new(r":([a-zA-Z0-9_+-]+):").expect("Invalid emoji regex"));
+
+/// Convert emoji shortcodes in text to actual emoji characters
+fn convert_emoji_shortcodes(text: &str) -> String {
+    EMOJI_PATTERN
+        .replace_all(text, |caps: &regex::Captures| {
+            let shortcode = &caps[1];
+            emojis::get_by_shortcode(shortcode)
+                .map(|e| e.as_str().to_string())
+                .unwrap_or_else(|| caps[0].to_string())
+        })
+        .to_string()
+}
 
 /// Tracks the current text style state for proper nesting
 #[derive(Clone, Default, PartialEq)]
@@ -332,7 +350,8 @@ impl TerminalRenderer {
     ) -> io::Result<()> {
         match inline {
             InlineElement::Text(text) => {
-                write!(out, "{}", text)?;
+                let converted = convert_emoji_shortcodes(text);
+                write!(out, "{}", converted)?;
             }
             InlineElement::Code(code) => {
                 // Code has its own color, temporarily override

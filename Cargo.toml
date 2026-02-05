@@ -58,6 +58,9 @@ serde_json = "1"
 # Regex for link processing
 regex = "1"
 
+# Emoji shortcode support
+emojis = "0.6"
+
 [dev-dependencies]
 tempfile = "3"
 
