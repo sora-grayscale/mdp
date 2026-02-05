@@ -10,6 +10,12 @@ const TEMPLATE: &str = include_str!("../../assets/template.html");
 static EMOJI_PATTERN: LazyLock<Regex> =
     LazyLock::new(|| Regex::new(r":([a-zA-Z0-9_+-]+):").expect("Invalid emoji regex"));
 
+/// Regex pattern for mermaid code blocks
+static MERMAID_PATTERN: LazyLock<Regex> = LazyLock::new(|| {
+    Regex::new(r#"<pre><code class="language-mermaid">([^<]*)</code></pre>"#)
+        .expect("Invalid mermaid regex")
+});
+
 /// Convert emoji shortcodes in text to actual emoji characters
 fn convert_emoji_shortcodes(text: &str) -> String {
     EMOJI_PATTERN
@@ -254,8 +260,7 @@ impl HtmlRenderer {
                     current_heading_text.push_str(text);
                     // Convert emoji shortcodes in heading text
                     let converted = convert_emoji_shortcodes(text);
-                    let converted_event =
-                        Event::Text(CowStr::Boxed(converted.into_boxed_str()));
+                    let converted_event = Event::Text(CowStr::Boxed(converted.into_boxed_str()));
                     current_heading_events.push(converted_event);
                 }
                 Event::Code(code) if in_heading => {
@@ -297,8 +302,7 @@ impl HtmlRenderer {
                 // Convert emoji shortcodes in text events (not in heading, handled above)
                 Event::Text(text) => {
                     let converted = convert_emoji_shortcodes(text);
-                    let converted_event =
-                        Event::Text(CowStr::Boxed(converted.into_boxed_str()));
+                    let converted_event = Event::Text(CowStr::Boxed(converted.into_boxed_str()));
                     if in_footnote {
                         footnote_events.push(converted_event);
                     } else {
@@ -385,11 +389,8 @@ impl HtmlRenderer {
 
     /// Process mermaid code blocks into styled containers
     fn process_mermaid(&self, html: &str) -> String {
-        let mermaid_pattern =
-            regex::Regex::new(r#"<pre><code class="language-mermaid">([^<]*)</code></pre>"#).ok();
-
-        if let Some(re) = mermaid_pattern {
-            re.replace_all(html, |caps: &regex::Captures| {
+        MERMAID_PATTERN
+            .replace_all(html, |caps: &regex::Captures| {
                 // Decode HTML entities first to get raw mermaid code,
                 // then re-encode to ensure safe HTML output
                 let code = html_escape::decode_html_entities(&caps[1]);
@@ -408,9 +409,6 @@ impl HtmlRenderer {
                 )
             })
             .to_string()
-        } else {
-            html.to_string()
-        }
     }
 
     fn heading_level_to_u8(level: HeadingLevel) -> u8 {

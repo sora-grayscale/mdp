@@ -352,14 +352,22 @@ mod tests {
                 assert_eq!(children.len(), 2); // guide.md and api folder
 
                 // Check for api subfolder
-                let api_folder = children.iter().find(|c| matches!(c, TreeNode::Folder { name, .. } if name == "api"));
+                let api_folder = children
+                    .iter()
+                    .find(|c| matches!(c, TreeNode::Folder { name, .. } if name == "api"));
                 assert!(api_folder.is_some(), "Should have api subfolder");
 
-                if let Some(TreeNode::Folder { children: api_children, .. }) = api_folder {
+                if let Some(TreeNode::Folder {
+                    children: api_children,
+                    ..
+                }) = api_folder
+                {
                     // api should contain reference.md and advanced folder
                     assert_eq!(api_children.len(), 2);
 
-                    let advanced_folder = api_children.iter().find(|c| matches!(c, TreeNode::Folder { name, .. } if name == "advanced"));
+                    let advanced_folder = api_children
+                        .iter()
+                        .find(|c| matches!(c, TreeNode::Folder { name, .. } if name == "advanced"));
                     assert!(advanced_folder.is_some(), "Should have advanced subfolder");
                 }
             }
