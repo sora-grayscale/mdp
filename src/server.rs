@@ -85,7 +85,7 @@ impl ServerState {
         // Lock released here, now do I/O
 
         let (content, current_file) = if let Some(path) = absolute_path {
-            let content = std::fs::read_to_string(&path).unwrap_or_default();
+            let content = tokio::fs::read_to_string(&path).await.unwrap_or_default();
             (content, relative_path)
         } else {
             ("# No file selected".to_string(), None)
@@ -110,7 +110,7 @@ impl ServerState {
         };
         // Lock released here, now do I/O
 
-        let content = std::fs::read_to_string(&absolute_path).ok()?;
+        let content = tokio::fs::read_to_string(&absolute_path).await.ok()?;
         let renderer = HtmlRenderer::new(&self.title).with_toc(self.show_toc);
         Some(renderer.render_content(&content))
     }
@@ -354,7 +354,7 @@ async fn handle_socket(mut socket: WebSocket, state: Arc<ServerState>) {
 
 /// Find an available port starting from the given port
 pub fn find_available_port(start_port: u16) -> u16 {
-    for port in start_port..start_port + 100 {
+    for port in start_port..=start_port.saturating_add(99) {
         if std::net::TcpListener::bind(format!("127.0.0.1:{}", port)).is_ok() {
             return port;
         }
