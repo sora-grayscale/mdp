@@ -206,8 +206,17 @@ pub async fn start_server(
     // Run server with graceful shutdown
     axum::serve(listener, app)
         .with_graceful_shutdown(async move {
-            // Wait for shutdown signal
-            let _ = shutdown_rx.recv().await;
+            let mut sigterm =
+                tokio::signal::unix::signal(tokio::signal::unix::SignalKind::terminate())
+                    .expect("Failed to register SIGTERM handler");
+            tokio::select! {
+                // Internal shutdown (all browser tabs closed)
+                _ = shutdown_rx.recv() => {}
+                // Ctrl+C (SIGINT)
+                _ = tokio::signal::ctrl_c() => {}
+                // kill (SIGTERM)
+                _ = sigterm.recv() => {}
+            }
             println!("\nShutting down server...");
         })
         .await?;

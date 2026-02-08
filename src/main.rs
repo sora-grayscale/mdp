@@ -1,7 +1,7 @@
 use clap::Parser;
 use std::env;
 use std::io::{self, Write};
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::process::{self, Command, Stdio};
 use tokio::sync::broadcast;
 
@@ -50,6 +50,14 @@ struct Args {
     /// Port for browser mode (default: 3000, auto-increments if busy)
     #[arg(short, long, default_value = "3000")]
     port: u16,
+
+    /// Run browser server in background (returns control to terminal)
+    #[arg(short = 'B', long)]
+    background: bool,
+
+    /// Internal flag: indicates this process is the daemonized child
+    #[arg(long = "_daemon", hide = true)]
+    daemon: bool,
 }
 
 fn main() {
@@ -132,12 +140,45 @@ fn main() {
             .to_string()
     };
 
+    // Validate: --background requires --browser
+    if args.background && !args.browser {
+        eprintln!("Error: --background (-B) requires --browser (-b) mode");
+        process::exit(1);
+    }
+
     // Render based on mode
     if args.browser {
-        // Browser mode (with optional watch)
         let port = find_available_port(args.port);
+
+        // Background mode: spawn detached child process and exit
+        if args.background && !args.daemon {
+            spawn_background_server(&args.path, port, args.watch, args.toc, args.sidebar);
+            return;
+        }
+
+        // Normal or daemon browser mode
         let rt = tokio::runtime::Runtime::new().expect("Failed to create runtime");
-        if let Err(e) = rt.block_on(start_server(file_tree, &title, port, args.watch, args.toc)) {
+
+        // Write PID file if running as daemon
+        let pid_file = if args.daemon {
+            let path = pid_file_path(port);
+            if let Err(e) = std::fs::write(&path, process::id().to_string()) {
+                eprintln!("Warning: Failed to write PID file: {}", e);
+            }
+            Some(path)
+        } else {
+            None
+        };
+
+        let result =
+            rt.block_on(start_server(file_tree, &title, port, args.watch, args.toc));
+
+        // Clean up PID file
+        if let Some(path) = pid_file {
+            let _ = std::fs::remove_file(path);
+        }
+
+        if let Err(e) = result {
             eprintln!("Error: Server failed: {}", e);
             process::exit(1);
         }
@@ -333,4 +374,57 @@ fn render_with_pager(
     }
 
     Ok(())
+}
+
+/// Get PID file path for a given port
+fn pid_file_path(port: u16) -> PathBuf {
+    std::env::temp_dir().join(format!("mdp-{}.pid", port))
+}
+
+/// Spawn a detached background server process
+fn spawn_background_server(path: &Path, port: u16, watch: bool, toc: bool, sidebar: bool) {
+    let exe = env::current_exe().unwrap_or_else(|e| {
+        eprintln!("Error: Failed to get current executable: {}", e);
+        process::exit(1);
+    });
+
+    let mut cmd_args = vec![
+        path.to_string_lossy().to_string(),
+        "-b".to_string(),
+        "--_daemon".to_string(),
+        "-p".to_string(),
+        port.to_string(),
+    ];
+    if watch {
+        cmd_args.push("-w".to_string());
+    }
+    if toc {
+        cmd_args.push("--toc".to_string());
+    }
+    if sidebar {
+        cmd_args.push("-s".to_string());
+    }
+
+    match Command::new(&exe)
+        .args(&cmd_args)
+        .stdin(Stdio::null())
+        .stdout(Stdio::null())
+        .stderr(Stdio::null())
+        .spawn()
+    {
+        Ok(child) => {
+            let pid = child.id();
+            let pid_file = pid_file_path(port);
+            println!(
+                "Server running at http://127.0.0.1:{} (background, PID: {})",
+                port, pid
+            );
+            println!("PID file: {}", pid_file.display());
+            println!("Stop with: kill {}", pid);
+        }
+        Err(e) => {
+            eprintln!("Error: Failed to start background server: {}", e);
+            process::exit(1);
+        }
+    }
 }
