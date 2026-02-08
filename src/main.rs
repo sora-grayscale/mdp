@@ -182,6 +182,11 @@ fn main() {
             eprintln!("Error: Server failed: {}", e);
             process::exit(1);
         }
+
+        // Force exit to terminate blocking watcher threads
+        // (spawn_blocking tasks in file watchers run infinite loops
+        //  that can't be cancelled by tokio runtime shutdown)
+        process::exit(0);
     } else if args.watch {
         // Terminal watch mode (single file only for now)
         if let Some(file) = file_tree.default_file() {
