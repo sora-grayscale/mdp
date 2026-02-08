@@ -27,6 +27,23 @@ fn convert_emoji_shortcodes(text: &str) -> String {
         })
         .to_string()
 }
+
+/// Escape a string for use inside a JavaScript single-quoted string within an HTML double-quoted attribute.
+fn escape_for_js_string_in_html_attr(s: &str) -> String {
+    // Step 1: JS-escape for single-quoted string context (order matters: \ first)
+    let js_escaped = s
+        .replace('\\', "\\\\")
+        .replace('\'', "\\'")
+        .replace('\n', "\\n")
+        .replace('\r', "\\r");
+    // Step 2: HTML-escape for double-quoted attribute context (order matters: & first)
+    js_escaped
+        .replace('&', "&amp;")
+        .replace('"', "&quot;")
+        .replace('<', "&lt;")
+        .replace('>', "&gt;")
+}
+
 const TEMPLATE_SIDEBAR: &str = include_str!("../../assets/template_sidebar.html");
 const CSS: &str = include_str!("../../assets/github.css");
 
@@ -58,7 +75,7 @@ impl HtmlRenderer {
         let html_content = self.markdown_to_html(markdown);
 
         TEMPLATE
-            .replace("{{TITLE}}", &self.title)
+            .replace("{{TITLE}}", &html_escape::encode_text(&self.title))
             .replace("{{CONTENT}}", &html_content)
     }
 
@@ -73,7 +90,7 @@ impl HtmlRenderer {
         let sidebar_html = self.build_sidebar(file_tree, current_file);
 
         TEMPLATE_SIDEBAR
-            .replace("{{TITLE}}", &self.title)
+            .replace("{{TITLE}}", &html_escape::encode_text(&self.title))
             .replace("{{SIDEBAR}}", &sidebar_html)
             .replace("{{CONTENT}}", &html_content)
     }
@@ -128,7 +145,7 @@ impl HtmlRenderer {
                         <div class="sidebar-folder-items">"#,
                     html_escape::encode_text(&folder_id),
                     depth,
-                    html_escape::encode_text(&folder_id),
+                    escape_for_js_string_in_html_attr(&folder_id),
                     ICON_TOGGLE,
                     ICON_FOLDER,
                     html_escape::encode_text(name)
@@ -171,7 +188,7 @@ impl HtmlRenderer {
             classes.join(" "),
             html_escape::encode_text(&path),
             depth,
-            html_escape::encode_text(&path),
+            escape_for_js_string_in_html_attr(&path),
             ICON_FILE,
             html_escape::encode_text(&file.name)
         )
@@ -374,7 +391,7 @@ impl HtmlRenderer {
             // Local .md file - use viewer
             format!(
                 r#"<a href="javascript:void(0)" onclick="loadFile('{}')"{}>"#,
-                html_escape::encode_text(url),
+                escape_for_js_string_in_html_attr(url),
                 title_attr
             )
         } else {

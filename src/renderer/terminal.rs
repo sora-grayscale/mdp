@@ -7,7 +7,7 @@ use syntect::easy::HighlightLines;
 use syntect::highlighting::{Style, ThemeSet};
 use syntect::parsing::SyntaxSet;
 use syntect::util::as_24_bit_terminal_escaped;
-use unicode_width::UnicodeWidthStr;
+use unicode_width::{UnicodeWidthChar, UnicodeWidthStr};
 
 use crate::parser::{
     Alignment, Document, Element, InlineElement, ListItem, TocEntry, generate_toc,
@@ -890,7 +890,7 @@ impl TerminalRenderer {
             out,
             "│ 🧜 Mermaid Diagram {:>width$}│",
             "",
-            width = box_width - 21
+            width = box_width.saturating_sub(21)
         )?;
         execute!(out, SetForegroundColor(Color::DarkGrey))?;
         writeln!(out, "├{}┤", "─".repeat(box_width))?;
@@ -901,8 +901,19 @@ impl TerminalRenderer {
             execute!(out, SetForegroundColor(Color::DarkGrey))?;
             write!(out, "│ ")?;
             execute!(out, SetForegroundColor(Color::Cyan))?;
-            let line_display = if line.width() > box_width - 3 {
-                format!("{}...", &line[..box_width.saturating_sub(6)])
+            let line_display = if line.width() > box_width.saturating_sub(3) {
+                let max_width = box_width.saturating_sub(6);
+                let mut end = 0;
+                let mut current_width = 0;
+                for ch in line.chars() {
+                    let ch_width = ch.width().unwrap_or(0);
+                    if current_width + ch_width > max_width {
+                        break;
+                    }
+                    current_width += ch_width;
+                    end += ch.len_utf8();
+                }
+                format!("{}...", &line[..end])
             } else {
                 line.to_string()
             };

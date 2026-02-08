@@ -259,8 +259,15 @@ fn run_terminal_watch_mode(file_path: &PathBuf, theme: &str, show_toc: bool) {
 
     println!("\n--- Watching for changes (Press q or Ctrl+C to exit) ---\n");
 
-    // Enable raw mode for keyboard input
+    // Enable raw mode for keyboard input with drop guard for panic safety
+    struct RawModeGuard;
+    impl Drop for RawModeGuard {
+        fn drop(&mut self) {
+            let _ = crossterm::terminal::disable_raw_mode();
+        }
+    }
     let _ = terminal::enable_raw_mode();
+    let _raw_guard = RawModeGuard;
 
     loop {
         // Poll for keyboard events (non-blocking with 100ms timeout)
@@ -296,8 +303,7 @@ fn run_terminal_watch_mode(file_path: &PathBuf, theme: &str, show_toc: bool) {
         }
     }
 
-    // Restore terminal state
-    let _ = terminal::disable_raw_mode();
+    // _raw_guard dropped here, restoring terminal state
 }
 
 fn render_terminal_content(file_path: &PathBuf, theme: &str, show_toc: bool) {
