@@ -1084,6 +1084,12 @@
             let ws;
             let reconnectAttempts = 0;
             const maxReconnectAttempts = 10;
+            let isUnloading = false;
+
+            window.addEventListener('beforeunload', function() {
+                isUnloading = true;
+                if (ws) ws.close();
+            });
 
             function showIndicator(message, isError) {
                 indicator.textContent = message;
@@ -1095,6 +1101,7 @@
             }
 
             function connect() {
+                if (isUnloading) return;
                 const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
                 const wsUrl = `${protocol}//${window.location.host}/ws`;
                 ws = new WebSocket(wsUrl);
@@ -1119,6 +1126,7 @@
                 };
 
                 ws.onclose = function() {
+                    if (isUnloading) return;
                     if (reconnectAttempts < maxReconnectAttempts) {
                         reconnectAttempts++;
                         showIndicator(`Reconnecting (${reconnectAttempts})...`, true);
