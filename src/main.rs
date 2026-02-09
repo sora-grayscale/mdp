@@ -170,8 +170,7 @@ fn main() {
             None
         };
 
-        let result =
-            rt.block_on(start_server(file_tree, &title, port, args.watch, args.toc));
+        let result = rt.block_on(start_server(file_tree, &title, port, args.watch, args.toc));
 
         // Clean up PID file
         if let Some(path) = pid_file {
