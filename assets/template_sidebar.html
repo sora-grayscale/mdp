@@ -889,6 +889,7 @@
 
                 const html = await response.text();
                 document.getElementById('content').innerHTML = html;
+                window.scrollTo(0, 0);
 
                 // Update active state in sidebar
                 document.querySelectorAll('.sidebar-item').forEach(item => {
