@@ -228,4 +228,4 @@ jobs:
             --body "Automated version bump to ${{ needs.version.outputs.version }}" \
             --base main \
             --head "$BRANCH"
-          gh pr merge "$BRANCH" --admin --rebase --delete-branch
+          gh pr merge "$BRANCH" --rebase --delete-branch || echo "PR created. Will need manual merge (CI checks required)."
