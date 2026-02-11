@@ -36,29 +36,23 @@ jobs:
             echo "skip=false" >> $GITHUB_OUTPUT
           fi
 
-      - name: Determine version and create tag
+      - name: Determine version
         id: version
         if: steps.check_skip.outputs.skip != 'true'
         run: |
-          # Get current version from Cargo.toml
           CURRENT_VERSION=$(grep -m1 '^version' Cargo.toml | sed 's/.*"\(.*\)".*/\1/')
           echo "Current version in Cargo.toml: $CURRENT_VERSION"
 
-          # Parse version components
           IFS='.' read -r MAJOR MINOR PATCH <<< "$CURRENT_VERSION"
 
-          # Get the last commit message
           COMMIT_MSG=$(git log -1 --pretty=%B)
           echo "Last commit message: $COMMIT_MSG"
 
-          # Determine version bump based on conventional commits
           if echo "$COMMIT_MSG" | grep -qiE '^feat(\(.+\))?!?:'; then
-            # feat: -> minor bump
             MINOR=$((MINOR + 1))
             PATCH=0
             echo "Detected 'feat' commit -> minor bump"
           else
-            # fix, chore, docs, etc. -> patch bump
             PATCH=$((PATCH + 1))
             echo "Detected other commit -> patch bump"
           fi
@@ -68,7 +62,6 @@ jobs:
           echo "New version: $NEW_VERSION"
           echo "New tag: $TAG"
 
-          # Check if tag already exists
           if git rev-parse "$TAG" >/dev/null 2>&1; then
             echo "Tag $TAG already exists. Skipping release."
             echo "should_release=false" >> $GITHUB_OUTPUT
@@ -80,22 +73,6 @@ jobs:
           echo "should_release=true" >> $GITHUB_OUTPUT
           echo "version=$NEW_VERSION" >> $GITHUB_OUTPUT
           echo "tag=$TAG" >> $GITHUB_OUTPUT
-
-      - name: Update Cargo.toml version
-        if: steps.version.outputs.should_release == 'true'
-        run: |
-          sed -i "0,/^version = .*/s//version = \"${{ steps.version.outputs.version }}\"/" Cargo.toml
-          echo "Updated Cargo.toml to version ${{ steps.version.outputs.version }}"
-          grep -m1 '^version' Cargo.toml
-
-      - name: Commit version bump
-        if: steps.version.outputs.should_release == 'true'
-        run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add Cargo.toml
-          git commit -m "chore: bump version to ${{ steps.version.outputs.version }}"
-          git push origin main
 
       - name: Create and push tag
         if: steps.version.outputs.should_release == 'true'
@@ -138,6 +115,13 @@ jobs:
         uses: actions/checkout@v4
         with:
           ref: ${{ needs.version.outputs.tag }}
+
+      - name: Patch version in Cargo.toml
+        shell: bash
+        run: |
+          perl -i -pe 's/^version = ".*"/version = "${{ needs.version.outputs.version }}"/' Cargo.toml
+          echo "Patched Cargo.toml to version ${{ needs.version.outputs.version }}"
+          grep -m1 '^version' Cargo.toml
 
       - name: Install Rust toolchain
         uses: dtolnay/rust-toolchain@stable
@@ -204,3 +188,42 @@ jobs:
           prerelease: false
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  version-bump:
+    name: Update Cargo.toml Version
+    needs: [version, release]
+    if: needs.version.outputs.should_release == 'true'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: write
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          ref: main
+
+      - name: Update Cargo.toml
+        run: |
+          perl -i -pe 's/^version = ".*"/version = "${{ needs.version.outputs.version }}"/' Cargo.toml
+          echo "Updated Cargo.toml to version ${{ needs.version.outputs.version }}"
+          grep -m1 '^version' Cargo.toml
+
+      - name: Create version bump PR
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          BRANCH="chore/bump-version-${{ needs.version.outputs.version }}"
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git checkout -b "$BRANCH"
+          git add Cargo.toml
+          git commit -m "chore: bump version to ${{ needs.version.outputs.version }}"
+          git push origin "$BRANCH"
+          gh pr create \
+            --title "chore: bump version to ${{ needs.version.outputs.version }}" \
+            --body "Automated version bump to ${{ needs.version.outputs.version }}" \
+            --base main \
+            --head "$BRANCH"
+          gh pr merge "$BRANCH" --auto --rebase
