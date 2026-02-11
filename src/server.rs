@@ -185,6 +185,7 @@ pub async fn start_server(
         .route("/api/files", get(serve_file_list))
         .route("/api/content", get(serve_content))
         .route("/assets/github.css", get(serve_css))
+        .route("/vendor/{*path}", get(serve_vendor))
         .route("/ws", get(ws_handler))
         .with_state(state);
 
@@ -350,6 +351,52 @@ async fn handle_socket(mut socket: WebSocket, state: Arc<ServerState>) {
             }
         });
     }
+}
+
+async fn serve_vendor(axum::extract::Path(path): axum::extract::Path<String>) -> Response {
+    let path = path.trim_start_matches('/');
+    let (bytes, content_type): (&[u8], &str) = match path {
+        // highlight.js
+        "highlight.min.js" => (include_bytes!("../assets/vendor/highlight.min.js"), "application/javascript"),
+        "github.min.css" => (include_bytes!("../assets/vendor/github.min.css"), "text/css"),
+        "github-dark.min.css" => (include_bytes!("../assets/vendor/github-dark.min.css"), "text/css"),
+        // mermaid
+        "mermaid.min.js" => (include_bytes!("../assets/vendor/mermaid.min.js"), "application/javascript"),
+        // KaTeX
+        "katex.min.js" => (include_bytes!("../assets/vendor/katex.min.js"), "application/javascript"),
+        "auto-render.min.js" => (include_bytes!("../assets/vendor/auto-render.min.js"), "application/javascript"),
+        "katex.min.css" => (include_bytes!("../assets/vendor/katex.min.css"), "text/css"),
+        // KaTeX fonts
+        "fonts/KaTeX_AMS-Regular.woff2" => (include_bytes!("../assets/vendor/fonts/KaTeX_AMS-Regular.woff2"), "font/woff2"),
+        "fonts/KaTeX_Caligraphic-Bold.woff2" => (include_bytes!("../assets/vendor/fonts/KaTeX_Caligraphic-Bold.woff2"), "font/woff2"),
+        "fonts/KaTeX_Caligraphic-Regular.woff2" => (include_bytes!("../assets/vendor/fonts/KaTeX_Caligraphic-Regular.woff2"), "font/woff2"),
+        "fonts/KaTeX_Fraktur-Bold.woff2" => (include_bytes!("../assets/vendor/fonts/KaTeX_Fraktur-Bold.woff2"), "font/woff2"),
+        "fonts/KaTeX_Fraktur-Regular.woff2" => (include_bytes!("../assets/vendor/fonts/KaTeX_Fraktur-Regular.woff2"), "font/woff2"),
+        "fonts/KaTeX_Main-Bold.woff2" => (include_bytes!("../assets/vendor/fonts/KaTeX_Main-Bold.woff2"), "font/woff2"),
+        "fonts/KaTeX_Main-BoldItalic.woff2" => (include_bytes!("../assets/vendor/fonts/KaTeX_Main-BoldItalic.woff2"), "font/woff2"),
+        "fonts/KaTeX_Main-Italic.woff2" => (include_bytes!("../assets/vendor/fonts/KaTeX_Main-Italic.woff2"), "font/woff2"),
+        "fonts/KaTeX_Main-Regular.woff2" => (include_bytes!("../assets/vendor/fonts/KaTeX_Main-Regular.woff2"), "font/woff2"),
+        "fonts/KaTeX_Math-BoldItalic.woff2" => (include_bytes!("../assets/vendor/fonts/KaTeX_Math-BoldItalic.woff2"), "font/woff2"),
+        "fonts/KaTeX_Math-Italic.woff2" => (include_bytes!("../assets/vendor/fonts/KaTeX_Math-Italic.woff2"), "font/woff2"),
+        "fonts/KaTeX_SansSerif-Bold.woff2" => (include_bytes!("../assets/vendor/fonts/KaTeX_SansSerif-Bold.woff2"), "font/woff2"),
+        "fonts/KaTeX_SansSerif-Italic.woff2" => (include_bytes!("../assets/vendor/fonts/KaTeX_SansSerif-Italic.woff2"), "font/woff2"),
+        "fonts/KaTeX_SansSerif-Regular.woff2" => (include_bytes!("../assets/vendor/fonts/KaTeX_SansSerif-Regular.woff2"), "font/woff2"),
+        "fonts/KaTeX_Script-Regular.woff2" => (include_bytes!("../assets/vendor/fonts/KaTeX_Script-Regular.woff2"), "font/woff2"),
+        "fonts/KaTeX_Size1-Regular.woff2" => (include_bytes!("../assets/vendor/fonts/KaTeX_Size1-Regular.woff2"), "font/woff2"),
+        "fonts/KaTeX_Size2-Regular.woff2" => (include_bytes!("../assets/vendor/fonts/KaTeX_Size2-Regular.woff2"), "font/woff2"),
+        "fonts/KaTeX_Size3-Regular.woff2" => (include_bytes!("../assets/vendor/fonts/KaTeX_Size3-Regular.woff2"), "font/woff2"),
+        "fonts/KaTeX_Size4-Regular.woff2" => (include_bytes!("../assets/vendor/fonts/KaTeX_Size4-Regular.woff2"), "font/woff2"),
+        "fonts/KaTeX_Typewriter-Regular.woff2" => (include_bytes!("../assets/vendor/fonts/KaTeX_Typewriter-Regular.woff2"), "font/woff2"),
+        _ => return (StatusCode::NOT_FOUND, "Not found").into_response(),
+    };
+
+    let mut headers = HeaderMap::new();
+    headers.insert(header::CONTENT_TYPE, content_type.parse().unwrap());
+    headers.insert(
+        header::CACHE_CONTROL,
+        "public, max-age=31536000, immutable".parse().unwrap(),
+    );
+    (headers, bytes).into_response()
 }
 
 /// Find an available port starting from the given port
