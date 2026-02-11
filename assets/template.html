@@ -5,12 +5,12 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>{{TITLE}}</title>
     <link rel="stylesheet" href="/assets/github.css">
-    <link id="hljs-theme" rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/github.min.css">
-    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.css">
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/contrib/auto-render.min.js"></script>
+    <link id="hljs-theme" rel="stylesheet" href="/vendor/github.min.css">
+    <link rel="stylesheet" href="/vendor/katex.min.css">
+    <script src="/vendor/highlight.min.js"></script>
+    <script src="/vendor/mermaid.min.js"></script>
+    <script src="/vendor/katex.min.js"></script>
+    <script src="/vendor/auto-render.min.js"></script>
     <style>
         .reload-indicator {
             position: fixed;
@@ -138,8 +138,8 @@
             const themeToggle = document.getElementById('themeToggle');
             const hljsTheme = document.getElementById('hljs-theme');
 
-            const HLJS_LIGHT = 'https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/github.min.css';
-            const HLJS_DARK = 'https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/github-dark.min.css';
+            const HLJS_LIGHT = '/vendor/github.min.css';
+            const HLJS_DARK = '/vendor/github-dark.min.css';
 
             // Get current theme
             function getCurrentTheme() {
