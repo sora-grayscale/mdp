@@ -25,8 +25,20 @@ jobs:
         with:
           fetch-depth: 0
 
+      - name: Skip version bump commits
+        id: check_skip
+        run: |
+          COMMIT_MSG=$(git log -1 --pretty=%B)
+          if echo "$COMMIT_MSG" | grep -q "^chore: bump version"; then
+            echo "skip=true" >> $GITHUB_OUTPUT
+            echo "Skipping: version bump commit detected"
+          else
+            echo "skip=false" >> $GITHUB_OUTPUT
+          fi
+
       - name: Determine version and create tag
         id: version
+        if: steps.check_skip.outputs.skip != 'true'
         run: |
           # Get current version from Cargo.toml
           CURRENT_VERSION=$(grep -m1 '^version' Cargo.toml | sed 's/.*"\(.*\)".*/\1/')
@@ -69,11 +81,25 @@ jobs:
           echo "version=$NEW_VERSION" >> $GITHUB_OUTPUT
           echo "tag=$TAG" >> $GITHUB_OUTPUT
 
-      - name: Create and push tag
+      - name: Update Cargo.toml version
+        if: steps.version.outputs.should_release == 'true'
+        run: |
+          sed -i "0,/^version = .*/s//version = \"${{ steps.version.outputs.version }}\"/" Cargo.toml
+          echo "Updated Cargo.toml to version ${{ steps.version.outputs.version }}"
+          grep -m1 '^version' Cargo.toml
+
+      - name: Commit version bump
         if: steps.version.outputs.should_release == 'true'
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add Cargo.toml
+          git commit -m "chore: bump version to ${{ steps.version.outputs.version }}"
+          git push origin main
+
+      - name: Create and push tag
+        if: steps.version.outputs.should_release == 'true'
+        run: |
           git tag -a "${{ steps.version.outputs.tag }}" -m "Release ${{ steps.version.outputs.tag }}"
           git push origin "${{ steps.version.outputs.tag }}"
 
@@ -110,6 +136,8 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.version.outputs.tag }}
 
       - name: Install Rust toolchain
         uses: dtolnay/rust-toolchain@stable
