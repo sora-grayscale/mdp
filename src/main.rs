@@ -148,13 +148,32 @@ fn main() {
 
     // Render based on mode
     if args.browser {
-        let port = find_available_port(args.port);
-
-        // Background mode: spawn detached child process and exit
+        // Background mode: check for existing server first
         if args.background && !args.daemon {
+            let pid_file = pid_file_path(args.port);
+            if pid_file.exists() {
+                if let Ok(pid_str) = std::fs::read_to_string(&pid_file) {
+                    if let Ok(pid) = pid_str.trim().parse::<u32>() {
+                        if is_process_alive(pid) {
+                            println!(
+                                "Server already running at http://127.0.0.1:{} (PID: {})",
+                                args.port, pid
+                            );
+                            let _ = open::that(format!("http://127.0.0.1:{}", args.port));
+                            return;
+                        }
+                    }
+                }
+                // Stale PID file, remove it
+                let _ = std::fs::remove_file(&pid_file);
+            }
+
+            let port = find_available_port(args.port);
             spawn_background_server(&args.path, port, args.watch, args.toc, args.sidebar);
             return;
         }
+
+        let port = find_available_port(args.port);
 
         // Normal or daemon browser mode
         let rt = tokio::runtime::Runtime::new().expect("Failed to create runtime");
@@ -170,7 +189,15 @@ fn main() {
             None
         };
 
-        let result = rt.block_on(start_server(file_tree, &title, port, args.watch, args.toc));
+        let open_browser = !args.daemon;
+        let result = rt.block_on(start_server(
+            file_tree,
+            &title,
+            port,
+            args.watch,
+            args.toc,
+            open_browser,
+        ));
 
         // Clean up PID file
         if let Some(path) = pid_file {
@@ -391,6 +418,34 @@ fn pid_file_path(port: u16) -> PathBuf {
     std::env::temp_dir().join(format!("mdp-{}.pid", port))
 }
 
+/// Check if a process with the given PID is still running
+fn is_process_alive(pid: u32) -> bool {
+    Command::new("kill")
+        .args(["-0", &pid.to_string()])
+        .stdout(Stdio::null())
+        .stderr(Stdio::null())
+        .status()
+        .is_ok_and(|s| s.success())
+}
+
+/// Wait for the server to be ready on the given port
+fn wait_for_port(port: u16, timeout_ms: u64) -> bool {
+    use std::net::TcpStream;
+    use std::time::{Duration, Instant};
+
+    let start = Instant::now();
+    let timeout = Duration::from_millis(timeout_ms);
+    let addr = format!("127.0.0.1:{}", port);
+
+    while start.elapsed() < timeout {
+        if TcpStream::connect(&addr).is_ok() {
+            return true;
+        }
+        std::thread::sleep(Duration::from_millis(50));
+    }
+    false
+}
+
 /// Spawn a detached background server process
 fn spawn_background_server(path: &Path, port: u16, watch: bool, toc: bool, sidebar: bool) {
     let exe = env::current_exe().unwrap_or_else(|e| {
@@ -424,13 +479,22 @@ fn spawn_background_server(path: &Path, port: u16, watch: bool, toc: bool, sideb
     {
         Ok(child) => {
             let pid = child.id();
-            let pid_file = pid_file_path(port);
             println!(
                 "Server running at http://127.0.0.1:{} (background, PID: {})",
                 port, pid
             );
-            println!("PID file: {}", pid_file.display());
+            println!("PID file: {}", pid_file_path(port).display());
             println!("Stop with: kill {}", pid);
+
+            // Wait for server to be ready, then open browser
+            if wait_for_port(port, 5000) {
+                let _ = open::that(format!("http://127.0.0.1:{}", port));
+            } else {
+                eprintln!(
+                    "Warning: Server did not start within 5s, open manually: http://127.0.0.1:{}",
+                    port
+                );
+            }
         }
         Err(e) => {
             eprintln!("Error: Failed to start background server: {}", e);
