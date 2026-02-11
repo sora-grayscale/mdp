@@ -130,6 +130,7 @@ pub async fn start_server(
     port: u16,
     watch: bool,
     show_toc: bool,
+    open_browser: bool,
 ) -> std::io::Result<()> {
     let (reload_tx, _) = broadcast::channel::<WsMessage>(16);
     let (shutdown_tx, mut shutdown_rx) = broadcast::channel::<()>(1);
@@ -185,7 +186,7 @@ pub async fn start_server(
         .route("/api/files", get(serve_file_list))
         .route("/api/content", get(serve_content))
         .route("/assets/github.css", get(serve_css))
-        .route("/vendor/{*path}", get(serve_vendor))
+        .route("/vendor/*path", get(serve_vendor))
         .route("/ws", get(ws_handler))
         .with_state(state);
 
@@ -199,9 +200,11 @@ pub async fn start_server(
     println!("Press Ctrl+C to stop (or close browser tab)");
 
     // Open browser
-    if let Err(e) = open::that(format!("http://{}", addr)) {
-        eprintln!("Failed to open browser: {}", e);
-        println!("Please open http://{} in your browser", addr);
+    if open_browser {
+        if let Err(e) = open::that(format!("http://{}", addr)) {
+            eprintln!("Failed to open browser: {}", e);
+            println!("Please open http://{} in your browser", addr);
+        }
     }
 
     // Run server with graceful shutdown
