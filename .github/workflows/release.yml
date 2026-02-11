@@ -229,3 +229,9 @@ jobs:
             --base main \
             --head "$BRANCH"
           gh pr merge "$BRANCH" --auto --rebase
+
+      - name: Trigger CI on version bump branch
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh workflow run ci.yml --ref "chore/bump-version-${{ needs.version.outputs.version }}"
