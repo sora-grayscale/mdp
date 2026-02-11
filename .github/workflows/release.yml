@@ -77,6 +77,8 @@ jobs:
       - name: Create and push tag
         if: steps.version.outputs.should_release == 'true'
         run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
           git tag -a "${{ steps.version.outputs.tag }}" -m "Release ${{ steps.version.outputs.tag }}"
           git push origin "${{ steps.version.outputs.tag }}"
 
