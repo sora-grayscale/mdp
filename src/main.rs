@@ -1,6 +1,7 @@
 use clap::Parser;
 use std::env;
 use std::io::{self, Write};
+use std::net::IpAddr;
 use std::path::{Path, PathBuf};
 use std::process::{self, Command, Stdio};
 use tokio::sync::broadcast;
@@ -8,7 +9,7 @@ use tokio::sync::broadcast;
 use mdp::files::FileTree;
 use mdp::parser::parse_markdown;
 use mdp::renderer::terminal::TerminalRenderer;
-use mdp::server::{find_available_port, start_server};
+use mdp::server::{browse_addr, find_available_port, get_local_ip, start_server};
 use mdp::watcher::watch_file;
 
 #[derive(Parser, Debug)]
@@ -50,6 +51,10 @@ struct Args {
     /// Port for browser mode (default: 3000, auto-increments if busy)
     #[arg(short, long, default_value = "3000")]
     port: u16,
+
+    /// Bind to specified address for LAN access (default: 0.0.0.0 if no value given)
+    #[arg(long, default_missing_value = "0.0.0.0", num_args = 0..=1, require_equals = true)]
+    host: Option<String>,
 
     /// Run browser server in background (returns control to terminal)
     #[arg(short = 'B', long)]
@@ -146,8 +151,23 @@ fn main() {
         process::exit(1);
     }
 
+    // Validate: --host requires --browser
+    if args.host.is_some() && !args.browser {
+        eprintln!("Warning: --host is ignored without --browser (-b) mode");
+    }
+
+    // Validate host address format
+    if let Some(ref host) = args.host {
+        if host.parse::<IpAddr>().is_err() {
+            eprintln!("Error: Invalid host address: {}", host);
+            process::exit(1);
+        }
+    }
+
     // Render based on mode
     if args.browser {
+        let host = args.host.as_deref().unwrap_or("127.0.0.1");
+
         // Background mode: check for existing server first
         if args.background && !args.daemon {
             let pid_file = pid_file_path(args.port);
@@ -155,11 +175,12 @@ fn main() {
                 if let Ok(pid_str) = std::fs::read_to_string(&pid_file) {
                     if let Ok(pid) = pid_str.trim().parse::<u32>() {
                         if is_process_alive(pid) {
+                            let browse_host = browse_addr(host);
                             println!(
-                                "Server already running at http://127.0.0.1:{} (PID: {})",
-                                args.port, pid
+                                "Server already running at http://{}:{} (PID: {})",
+                                browse_host, args.port, pid
                             );
-                            let _ = open::that(format!("http://127.0.0.1:{}", args.port));
+                            let _ = open::that(format!("http://{}:{}", browse_host, args.port));
                             return;
                         }
                     }
@@ -168,12 +189,12 @@ fn main() {
                 let _ = std::fs::remove_file(&pid_file);
             }
 
-            let port = find_available_port(args.port);
-            spawn_background_server(&args.path, port, args.watch, args.toc, args.sidebar);
+            let port = find_available_port(host, args.port);
+            spawn_background_server(&args.path, host, port, args.watch, args.toc, args.sidebar);
             return;
         }
 
-        let port = find_available_port(args.port);
+        let port = find_available_port(host, args.port);
 
         // Normal or daemon browser mode
         let rt = tokio::runtime::Runtime::new().expect("Failed to create runtime");
@@ -193,6 +214,7 @@ fn main() {
         let result = rt.block_on(start_server(
             file_tree,
             &title,
+            host,
             port,
             args.watch,
             args.toc,
@@ -429,13 +451,14 @@ fn is_process_alive(pid: u32) -> bool {
 }
 
 /// Wait for the server to be ready on the given port
-fn wait_for_port(port: u16, timeout_ms: u64) -> bool {
+fn wait_for_port(host: &str, port: u16, timeout_ms: u64) -> bool {
     use std::net::TcpStream;
     use std::time::{Duration, Instant};
 
     let start = Instant::now();
     let timeout = Duration::from_millis(timeout_ms);
-    let addr = format!("127.0.0.1:{}", port);
+    let connect_host = browse_addr(host);
+    let addr = format!("{}:{}", connect_host, port);
 
     while start.elapsed() < timeout {
         if TcpStream::connect(&addr).is_ok() {
@@ -447,7 +470,7 @@ fn wait_for_port(port: u16, timeout_ms: u64) -> bool {
 }
 
 /// Spawn a detached background server process
-fn spawn_background_server(path: &Path, port: u16, watch: bool, toc: bool, sidebar: bool) {
+fn spawn_background_server(path: &Path, host: &str, port: u16, watch: bool, toc: bool, sidebar: bool) {
     let exe = env::current_exe().unwrap_or_else(|e| {
         eprintln!("Error: Failed to get current executable: {}", e);
         process::exit(1);
@@ -459,6 +482,7 @@ fn spawn_background_server(path: &Path, port: u16, watch: bool, toc: bool, sideb
         "--_daemon".to_string(),
         "-p".to_string(),
         port.to_string(),
+        format!("--host={}", host),
     ];
     if watch {
         cmd_args.push("-w".to_string());
@@ -479,20 +503,24 @@ fn spawn_background_server(path: &Path, port: u16, watch: bool, toc: bool, sideb
     {
         Ok(child) => {
             let pid = child.id();
-            println!(
-                "Server running at http://127.0.0.1:{} (background, PID: {})",
-                port, pid
-            );
+            let browse_host = browse_addr(host);
+            println!("Server running at: (background, PID: {})", pid);
+            println!("  Local:   http://{}:{}", browse_host, port);
+            if host == "0.0.0.0" {
+                if let Some(lan_ip) = get_local_ip() {
+                    println!("  Network: http://{}:{}", lan_ip, port);
+                }
+            }
             println!("PID file: {}", pid_file_path(port).display());
             println!("Stop with: kill {}", pid);
 
             // Wait for server to be ready, then open browser
-            if wait_for_port(port, 5000) {
-                let _ = open::that(format!("http://127.0.0.1:{}", port));
+            if wait_for_port(host, port, 5000) {
+                let _ = open::that(format!("http://{}:{}", browse_host, port));
             } else {
                 eprintln!(
-                    "Warning: Server did not start within 5s, open manually: http://127.0.0.1:{}",
-                    port
+                    "Warning: Server did not start within 5s, open manually: http://{}:{}",
+                    browse_host, port
                 );
             }
         }
