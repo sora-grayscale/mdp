@@ -127,6 +127,7 @@ impl ServerState {
 pub async fn start_server(
     file_tree: FileTree,
     title: &str,
+    host: &str,
     port: u16,
     watch: bool,
     show_toc: bool,
@@ -190,10 +191,17 @@ pub async fn start_server(
         .route("/ws", get(ws_handler))
         .with_state(state);
 
-    let addr = format!("127.0.0.1:{}", port);
+    let addr = format!("{}:{}", host, port);
     let listener = tokio::net::TcpListener::bind(&addr).await?;
 
-    println!("Server running at http://{}", addr);
+    let browse_host = browse_addr(host);
+    println!("Server running at:");
+    println!("  Local:   http://{}:{}", browse_host, port);
+    if host == "0.0.0.0" {
+        if let Some(lan_ip) = get_local_ip() {
+            println!("  Network: http://{}:{}", lan_ip, port);
+        }
+    }
     if watch {
         println!("Live reload enabled - changes will auto-refresh");
     }
@@ -201,9 +209,10 @@ pub async fn start_server(
 
     // Open browser
     if open_browser {
-        if let Err(e) = open::that(format!("http://{}", addr)) {
+        let browse_addr = format!("http://{}:{}", browse_host, port);
+        if let Err(e) = open::that(&browse_addr) {
             eprintln!("Failed to open browser: {}", e);
-            println!("Please open http://{} in your browser", addr);
+            println!("Please open {} in your browser", browse_addr);
         }
     }
 
@@ -487,10 +496,22 @@ async fn serve_vendor(axum::extract::Path(path): axum::extract::Path<String>) ->
     (headers, bytes).into_response()
 }
 
+/// Convert bind address to a browsable address (0.0.0.0 -> 127.0.0.1)
+pub fn browse_addr(host: &str) -> &str {
+    if host == "0.0.0.0" { "127.0.0.1" } else { host }
+}
+
+/// Detect local LAN IP address via UDP socket
+pub fn get_local_ip() -> Option<String> {
+    let socket = std::net::UdpSocket::bind("0.0.0.0:0").ok()?;
+    socket.connect("8.8.8.8:80").ok()?;
+    Some(socket.local_addr().ok()?.ip().to_string())
+}
+
 /// Find an available port starting from the given port
-pub fn find_available_port(start_port: u16) -> u16 {
+pub fn find_available_port(host: &str, start_port: u16) -> u16 {
     for port in start_port..=start_port.saturating_add(99) {
-        if std::net::TcpListener::bind(format!("127.0.0.1:{}", port)).is_ok() {
+        if std::net::TcpListener::bind(format!("{}:{}", host, port)).is_ok() {
             return port;
         }
     }
